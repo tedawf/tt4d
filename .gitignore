@@ -1,0 +1,8 @@
+# Environment
+.env
+
+# Python
+.venv
+
+# Macos
+.DS_Store
