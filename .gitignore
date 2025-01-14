@@ -3,6 +3,7 @@
 
 # Python
 .venv
+__pycache__
 
 # Macos
 .DS_Store
