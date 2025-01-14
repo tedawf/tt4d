@@ -6,14 +6,7 @@ from typing import Dict, List, Optional
 @dataclass
 class WinningLocation:
     outlet_name: str
-    address: str
     entry_type: str
-    entry_count: int
-
-
-@dataclass
-class iTotoLocation:
-    outlets: List[str]
 
 
 @dataclass
@@ -23,7 +16,10 @@ class GroupResult:
     winning_count: int = 0
     snowball_amount: Optional[float] = None
     winning_locations: List[WinningLocation] = None
-    itoto_locations: Optional[iTotoLocation] = None
+
+    def __post_init__(self):
+        if self.winning_locations is None:
+            self.winning_locations = []
 
 
 @dataclass
