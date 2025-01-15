@@ -1,6 +1,13 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import List, Optional
+
+
+@dataclass
+class WinningShare:
+    group: int = 0
+    amount: float = 0.0
+    count: int = 0
 
 
 @dataclass
@@ -28,7 +35,7 @@ class DrawResult:
     draw_number: int
     winning_numbers: List[int]
     additional_number: int
-    winning_shares: List[Dict]
+    winning_shares: List[WinningShare]
     jackpot: float
     group1_result: Optional[GroupResult] = None
     group2_result: Optional[GroupResult] = None

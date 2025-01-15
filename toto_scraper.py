@@ -5,7 +5,7 @@ from typing import Optional
 import requests
 from bs4 import BeautifulSoup
 
-from toto_models import DrawResult, GroupResult, WinningLocation
+from toto_models import DrawResult, GroupResult, WinningLocation, WinningShare
 
 BASE_URL = "https://www.singaporepools.com.sg/en/product/sr/Pages/toto_results.aspx"
 
@@ -19,7 +19,7 @@ def fetch_draw(draw_no):
         response = requests.get(f"{BASE_URL}?sppl={encoded_draw_no}")
         if response.status_code == 200:
             print("Successfully fetched latest TOTO results")
-            return response.text
+            return parse_draw(response.text)
         else:
             print(f"Failed to fetch page: {response.status_code}")
             return None
@@ -46,6 +46,8 @@ def parse_draw(html_content: str) -> Optional[DrawResult]:
         if draw_date:
             draw_date = parse_date(draw_date)
         draw_number = result_div.find("th", class_="drawNumber").text.strip()
+        if draw_number:
+            draw_number = parse_draw_number(draw_number)
 
         # Winning numbers
         winning_numbers = []
@@ -66,8 +68,8 @@ def parse_draw(html_content: str) -> Optional[DrawResult]:
             winning_shares = parse_winning_shares(winning_shares)
 
             # Assign group winner count
-            group1.winning_count = winning_shares[0]["count"]
-            group2.winning_count = winning_shares[1]["count"]
+            group1.winning_count = winning_shares[0].count
+            group2.winning_count = winning_shares[1].count
 
         # Get group 1 prize (2995+)
         jackpot = result_div.find("td", class_="jackpotPrize")
@@ -104,11 +106,11 @@ def parse_winning_shares(shares_table: str):
             amount = cols[1].text.strip()
             count = cols[2].text.strip()
             winning_shares.append(
-                {
-                    "group": int(group),
-                    "amount": parse_money_amount(amount),
-                    "count": parse_number(count),
-                }
+                WinningShare(
+                    group=int(group),
+                    amount=parse_money_amount(amount),
+                    count=parse_number(count),
+                )
             )
     return winning_shares
 
@@ -292,30 +294,24 @@ def print_group_result(group_name: str, result: GroupResult) -> None:
 # Test scraper
 if __name__ == "__main__":
     print("1. Fetching page...")
-    page = fetch_draw("1234")
+    result = fetch_draw("2995")
 
-    if page:
-        print("\n2. Parsing latest draw...")
-        result = parse_draw(page)
+    if result:
+        print("Parsing completed")
+        print("\nResults:")
+        print("Draw Date:", result.draw_date)
+        print("Draw Number:", result.draw_number)
+        print("Winning Numbers:", result.winning_numbers)
+        print("Additional Number:", result.additional_number)
 
-        if result:
-            print("Parsing completed")
-            print("\nResults:")
-            print("Draw Date:", result.draw_date)
-            print("Draw Number:", result.draw_number)
-            print("Winning Numbers:", result.winning_numbers)
-            print("Additional Number:", result.additional_number)
+        if result.jackpot:
+            print("Group 1 Prize:", f"${result.jackpot}")
 
-            if result.jackpot:
-                print("Group 1 Prize:", f"${result.jackpot}")
-
-            if result.winning_shares:
-                print("\nWinning Shares:")
-                for share in result.winning_shares:
-                    print(
-                        f"Group {share['group']}: ${share['amount']} ({share['count']} winners)"
-                    )
-            if result.group1_result.has_winner:
-                print_group_result("Group 1", result.group1_result)
-            if result.group2_result.has_winner:
-                print_group_result("Group 2", result.group2_result)
+        if result.winning_shares:
+            print("\nWinning Shares:")
+            for share in result.winning_shares:
+                print(f"Group {share.group}: ${share.amount} ({share.count} winners)")
+        if result.group1_result.has_winner:
+            print_group_result("Group 1", result.group1_result)
+        if result.group2_result.has_winner:
+            print_group_result("Group 2", result.group2_result)

@@ -3,7 +3,7 @@ include .env
 export # Variables are available to both the Makefile AND any commands/processes it runs
 
 # Database URL for golang-migrate
-DATABASE_URL=postgres://$(POSTGRES_USER):$(POSTGRES_PASS)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_NAME)?sslmode=disable
+DATABASE_URL=postgres://$(DB_USER):$(DB_PASS)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 
 .DEFAULT_GOAL := help
 .PHONY: help
@@ -13,10 +13,10 @@ help: # Display this help screen
 .PHONY: env
 env: # Display environment variables
 	@echo "Database URL: $(DATABASE_URL)"
-	@echo "Postgres User: $(POSTGRES_USER)"
-	@echo "Postgres Name: $(POSTGRES_NAME)"
-	@echo "Postgres Host: $(POSTGRES_HOST)"
-	@echo "Postgres Port: $(POSTGRES_PORT)"
+	@echo "Postgres User: $(DB_USER)"
+	@echo "Postgres Name: $(DB_NAME)"
+	@echo "Postgres Host: $(DB_HOST)"
+	@echo "Postgres Port: $(DB_PORT)"
 	@echo "Migration Path: $(MIGRATION_PATH)"
 
 .PHONY: venv
@@ -47,3 +47,4 @@ migrate-down: # Rollback last migration
 .PHONY: migrate-reset
 migrate-reset: # Rollback all migrations
 	migrate -path $(MIGRATION_PATH) -database "$(DATABASE_URL)" drop
+	migrate -path $(MIGRATION_PATH) -database "$(DATABASE_URL)" up
