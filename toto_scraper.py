@@ -19,8 +19,7 @@ def fetch_draw(draw_no):
     try:
         response = requests.get(f"{BASE_URL}?sppl={encoded_draw_no}")
         if response.status_code == 200:
-            print("Successfully fetched latest TOTO results")
-            return _parse_draw(response.text)
+            return _parse_draw(response.text, draw_no)
         else:
             print(f"Failed to fetch page: {response.status_code}")
             return None
@@ -29,7 +28,7 @@ def fetch_draw(draw_no):
         return None
 
 
-def _parse_draw(html_content: str) -> Optional[DrawResult]:
+def _parse_draw(html_content: str, given_draw_no) -> Optional[DrawResult]:
     """Parse TOTO draw results from HTML content."""
     if not html_content:
         return None
@@ -42,13 +41,19 @@ def _parse_draw(html_content: str) -> Optional[DrawResult]:
             print("Could not find draw results div")
             return None
 
-        # Basic draw info
-        draw_date = result_div.find("th", class_="drawDate").text.strip()
-        if draw_date:
-            draw_date = _parse_date(draw_date)
+        # Check draw number is same as given
         draw_number = result_div.find("th", class_="drawNumber").text.strip()
         if draw_number:
             draw_number = _parse_draw_number(draw_number)
+
+        if draw_number != int(given_draw_no):
+            print(f"No draw data available for draw {given_draw_no}")
+            return None
+
+        # Get draw date
+        draw_date = result_div.find("th", class_="drawDate").text.strip()
+        if draw_date:
+            draw_date = _parse_date(draw_date)
 
         # Winning numbers
         winning_numbers = []
@@ -310,12 +315,12 @@ def print_group_result(group_name: str, result: GroupResult) -> None:
 if __name__ == "__main__":
     import sys
 
+    print("Fetching results...")
+
     if len(sys.argv) != 2:
         result = fetch_draw(9999)
     else:
         result = fetch_draw(sys.argv[1])
-
-    print("1. Fetching page...")
 
     if result:
         print("Parsing completed")
