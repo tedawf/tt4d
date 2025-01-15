@@ -103,7 +103,7 @@ def get_latest_draw_number() -> Optional[int]:
 
         cur.execute("SELECT MAX(draw_number) FROM toto_results")
         result = cur.fetchone()
-        return result[0] if result[0] is not None else 0
+        return result[0]
 
     except Exception as e:
         print(f"Error getting latest draw number: {e}")

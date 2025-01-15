@@ -47,7 +47,7 @@ def _parse_draw(html_content: str, given_draw_no) -> Optional[DrawResult]:
             draw_number = _parse_draw_number(draw_number)
 
         if draw_number != int(given_draw_no):
-            print(f"No draw data available for draw {given_draw_no}")
+            print(f"Unable to fetch data for draw {given_draw_no}")
             return None
 
         # Get draw date

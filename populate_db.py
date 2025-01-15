@@ -10,7 +10,6 @@ def populate_past_draws(start: int, end: int):
             print(f"Fetching draw {draw_no}...")
             draw_result = fetch_draw(draw_no)
             if draw_result:
-
                 if save_draw(draw_result):
                     print(f"Successfully saved draw {draw_no}")
                 else:
