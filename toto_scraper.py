@@ -151,8 +151,6 @@ def _parse_winning_location(
 
             # Get entry type from within parentheses
             entry_type = parts[-1].replace(")", "").strip()
-            if entry_type.startswith("1 "):  # Remove the count prefix
-                entry_type = entry_type[2:]
 
         return WinningLocation(outlet_name, entry_type)
 
