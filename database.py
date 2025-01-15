@@ -25,7 +25,7 @@ def save_group_result(result: GroupResult, cur, draw_number, group_number):
         for location in result.winning_locations:
             cur.execute(
                 """INSERT INTO winning_locations (draw_number, group_number, outlet_name, entry_type) 
-                VALUES (%s, %s, %s, %s) ON CONFLICT (draw_number, group_number) DO NOTHING""",
+                VALUES (%s, %s, %s, %s) ON CONFLICT (draw_number, group_number, outlet_name) DO NOTHING""",
                 (draw_number, group_number, location.outlet_name, location.entry_type),
             )
     elif result.snowball_amount:

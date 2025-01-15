@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS winning_locations (
     group_number INTEGER NOT NULL,
     outlet_name TEXT NOT NULL,
     entry_type TEXT NOT NULL,
-    UNIQUE (draw_number, group_number)
+    UNIQUE (draw_number, group_number, outlet_name)
 );
 
 CREATE INDEX idx_draw_number ON toto_results (draw_number);

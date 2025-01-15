@@ -141,7 +141,7 @@ def _parse_winning_location(
         if is_itoto:
             # For iTOTO locations, get the full outlet name and append iTOTO system
             outlet_name = location_text.replace("•", "").strip()
-            entry_type = f"iTOTO - {itoto_system}"
+            entry_type = f"iTOTO - System {itoto_system}"
         else:
             # Split by parentheses
             parts = location_text.split("(")
@@ -150,12 +150,12 @@ def _parse_winning_location(
 
             # Get everything before the parentheses as outlet name
             outlet_name = parts[0].strip()
-            outlet_name = outlet_name.replace(
-                " - -", ""
-            )  # Handle case: Singapore Pools Account Betting Service - -
 
             # Get entry type from within parentheses
             entry_type = parts[-1].replace(")", "").strip()
+
+        # Handle case: Singapore Pools Account Betting Service - -
+        outlet_name = outlet_name.replace(" - -", "")
 
         return WinningLocation(outlet_name, entry_type)
 
@@ -202,10 +202,12 @@ def _parse_group_results(winning_outlets_div) -> tuple[GroupResult, GroupResult]
 
                 text = li.text.strip()
                 if "iTOTO" in text:
-                    # Extract system type from the iTOTO header
-                    system_type = (
-                        text.split("-")[1].strip() if "-" in text else "Unknown"
-                    )
+                    # Extract system number using regex
+                    system_type = "12"
+                    match = re.search(r"System\s+(\d+)", text)
+                    if match:
+                        system_type = match.group(1)  # This will give just the number
+
                     # Parse each iTOTO outlet
                     for line in text.split("\n"):
                         if "•" in line:
@@ -234,9 +236,11 @@ def _parse_group_results(winning_outlets_div) -> tuple[GroupResult, GroupResult]
 
                 text = li.text.strip()
                 if "iTOTO" in text:
-                    system_type = (
-                        text.split("-")[1].strip() if "-" in text else "Unknown"
-                    )
+                    system_type = None
+                    match = re.search(r"System\s+(\d+)", text)
+                    if match:
+                        system_type = match.group(1)
+
                     for line in text.split("\n"):
                         if "•" in line:
                             location = _parse_winning_location(
