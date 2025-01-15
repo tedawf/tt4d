@@ -1,6 +1,7 @@
 import base64
+import re
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 import requests
 from bs4 import BeautifulSoup
@@ -19,7 +20,7 @@ def fetch_draw(draw_no):
         response = requests.get(f"{BASE_URL}?sppl={encoded_draw_no}")
         if response.status_code == 200:
             print("Successfully fetched latest TOTO results")
-            return parse_draw(response.text)
+            return _parse_draw(response.text)
         else:
             print(f"Failed to fetch page: {response.status_code}")
             return None
@@ -28,7 +29,7 @@ def fetch_draw(draw_no):
         return None
 
 
-def parse_draw(html_content: str) -> Optional[DrawResult]:
+def _parse_draw(html_content: str) -> Optional[DrawResult]:
     """Parse TOTO draw results from HTML content."""
     if not html_content:
         return None
@@ -44,10 +45,10 @@ def parse_draw(html_content: str) -> Optional[DrawResult]:
         # Basic draw info
         draw_date = result_div.find("th", class_="drawDate").text.strip()
         if draw_date:
-            draw_date = parse_date(draw_date)
+            draw_date = _parse_date(draw_date)
         draw_number = result_div.find("th", class_="drawNumber").text.strip()
         if draw_number:
-            draw_number = parse_draw_number(draw_number)
+            draw_number = _parse_draw_number(draw_number)
 
         # Winning numbers
         winning_numbers = []
@@ -60,21 +61,23 @@ def parse_draw(html_content: str) -> Optional[DrawResult]:
         # Get winning outlets
         winning_outlets = soup.find("div", class_="divWinningOutlets")
         if winning_outlets:
-            group1, group2 = parse_group_results(winning_outlets)
+            group1, group2 = _parse_group_results(winning_outlets)
 
         # Get winning shares (1194+)
         winning_shares = result_div.find("table", class_="tableWinningShares")
         if winning_shares:
-            winning_shares = parse_winning_shares(winning_shares)
+            winning_shares = _parse_winning_shares(winning_shares)
 
-            # Assign group winner count
+            # Assign group winner count and prize amount
+            group1.prize_amount = winning_shares[0].amount
             group1.winning_count = winning_shares[0].count
+            group2.prize_amount = winning_shares[1].amount
             group2.winning_count = winning_shares[1].count
 
         # Get group 1 prize (2995+)
         jackpot = result_div.find("td", class_="jackpotPrize")
         if jackpot:
-            jackpot = parse_money_amount(jackpot.text.strip())
+            jackpot = _parse_money_amount(jackpot.text.strip())
 
         return DrawResult(
             draw_date=draw_date,
@@ -95,7 +98,7 @@ def parse_draw(html_content: str) -> Optional[DrawResult]:
         return None
 
 
-def parse_winning_shares(shares_table: str):
+def _parse_winning_shares(shares_table: str) -> List[WinningShare]:
     winning_shares = []
 
     rows = shares_table.find_all("tr")[2:]  # Skip header rows
@@ -108,14 +111,14 @@ def parse_winning_shares(shares_table: str):
             winning_shares.append(
                 WinningShare(
                     group=int(group),
-                    amount=parse_money_amount(amount),
-                    count=parse_number(count),
+                    amount=_parse_money_amount(amount),
+                    count=_parse_number(count),
                 )
             )
     return winning_shares
 
 
-def parse_winning_location(
+def _parse_winning_location(
     location_text: str, is_itoto: bool = False, itoto_system: str = ""
 ) -> Optional[WinningLocation]:
     """
@@ -159,7 +162,7 @@ def parse_winning_location(
         return None
 
 
-def parse_group_results(winning_outlets_div) -> tuple[GroupResult, GroupResult]:
+def _parse_group_results(winning_outlets_div) -> tuple[GroupResult, GroupResult]:
     """
     Parse Group 1 and Group 2 results from the winning outlets div.
     """
@@ -170,6 +173,20 @@ def parse_group_results(winning_outlets_div) -> tuple[GroupResult, GroupResult]:
         return group1, group2
 
     try:
+        # Check for snowball messages
+        snowball_messages = winning_outlets_div.find_all("strong")
+        for msg in snowball_messages:
+            if not msg or not msg.text:
+                continue
+            if "Group 1 has no winner" in msg.text:
+                amount_match = re.search(r"\$([0-9,]+)", msg.text)
+                if amount_match:
+                    group1.snowball_amount = _parse_money_amount(amount_match.group(0))
+            elif "Group 2 has no winner" in msg.text:
+                amount_match = re.search(r"\$([0-9,]+)", msg.text)
+                if amount_match:
+                    group2.snowball_amount = _parse_money_amount(amount_match.group(0))
+
         # Parse Group 1 winning locations
         g1_locations = []
         g1_section = winning_outlets_div.find(
@@ -189,13 +206,13 @@ def parse_group_results(winning_outlets_div) -> tuple[GroupResult, GroupResult]:
                     # Parse each iTOTO outlet
                     for line in text.split("\n"):
                         if "•" in line:
-                            location = parse_winning_location(
+                            location = _parse_winning_location(
                                 line, is_itoto=True, itoto_system=system_type
                             )
                             if location:
                                 g1_locations.append(location)
                 else:
-                    location = parse_winning_location(text)
+                    location = _parse_winning_location(text)
                     if location:
                         g1_locations.append(location)
 
@@ -219,13 +236,13 @@ def parse_group_results(winning_outlets_div) -> tuple[GroupResult, GroupResult]:
                     )
                     for line in text.split("\n"):
                         if "•" in line:
-                            location = parse_winning_location(
+                            location = _parse_winning_location(
                                 line, is_itoto=True, itoto_system=system_type
                             )
                             if location:
                                 g2_locations.append(location)
                 else:
-                    location = parse_winning_location(text)
+                    location = _parse_winning_location(text)
                     if location:
                         g2_locations.append(location)
 
@@ -239,26 +256,26 @@ def parse_group_results(winning_outlets_div) -> tuple[GroupResult, GroupResult]:
     return group1, group2
 
 
-def parse_number(number_str):
+def _parse_number(number_str):
     """Remove "," from numbers"""
     if number_str == "-":
         return 0
     return int(number_str.replace(",", ""))
 
 
-def parse_money_amount(amount_str):
+def _parse_money_amount(amount_str):
     """Convert "$1,234,567" to decimal"""
     if amount_str == "-" or amount_str is None:
         return 0
     return float(amount_str.replace(",", "").replace("$", ""))
 
 
-def parse_date(date_str):
+def _parse_date(date_str):
     """Convert "Thu, 01 Jan 2025" to datetime"""
     return datetime.strptime(date_str, "%a, %d %b %Y")
 
 
-def parse_draw_number(draw_str):
+def _parse_draw_number(draw_str):
     """Extract draw number from "Draw No. 1234" """
     return int(draw_str.replace("Draw No. ", "").strip())
 
@@ -293,8 +310,14 @@ def print_group_result(group_name: str, result: GroupResult) -> None:
 
 # Test scraper
 if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) != 2:
+        result = fetch_draw(9999)
+    else:
+        result = fetch_draw(sys.argv[1])
+
     print("1. Fetching page...")
-    result = fetch_draw("2995")
 
     if result:
         print("Parsing completed")
@@ -311,7 +334,7 @@ if __name__ == "__main__":
             print("\nWinning Shares:")
             for share in result.winning_shares:
                 print(f"Group {share.group}: ${share.amount} ({share.count} winners)")
-        if result.group1_result.has_winner:
+        if result.group1_result:
             print_group_result("Group 1", result.group1_result)
-        if result.group2_result.has_winner:
+        if result.group2_result:
             print_group_result("Group 2", result.group2_result)

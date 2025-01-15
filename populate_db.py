@@ -27,5 +27,22 @@ def populate_past_draws(start: int, end: int):
 
 
 if __name__ == "__main__":
-    populate_past_draws(1193, 1194)
-    populate_past_draws(2994, 2995)
+    import sys
+
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print("Invalid arguments: Please input 2 start and end draw numbers!")
+        exit()
+    else:
+        start = int(sys.argv[1])
+
+        if len(sys.argv) == 2:
+            end = int(sys.argv[1])
+        else:
+            end = int(sys.argv[2])
+
+        # Check valid
+        if end < start:
+            print("End draw number cannot be before start draw number!")
+            exit()
+
+        populate_past_draws(start, end)

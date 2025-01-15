@@ -5,7 +5,7 @@ import psycopg2
 from dotenv import load_dotenv
 from psycopg2.extras import DictCursor
 
-from toto_models import DrawResult
+from toto_models import DrawResult, GroupResult
 
 # Load environment variables
 load_dotenv()
@@ -20,12 +20,20 @@ DB_CONFIG = {
 }
 
 
-def save_group_result(winning_locations, cur, draw_number, group_number):
-    for location in winning_locations:
+def save_group_result(result: GroupResult, cur, draw_number, group_number):
+    if result.has_winner:
+        for location in result.winning_locations:
+            cur.execute(
+                """INSERT INTO winning_locations (draw_number, group_number, outlet_name, entry_type) 
+                VALUES (%s, %s, %s, %s) ON CONFLICT (draw_number, group_number) DO NOTHING""",
+                (draw_number, group_number, location.outlet_name, location.entry_type),
+            )
+    elif result.snowball_amount:
         cur.execute(
-            """INSERT INTO winning_locations (draw_number, group_number, outlet_name, entry_type) 
-            VALUES (%s, %s, %s, %s) ON CONFLICT (draw_number, group_number) DO NOTHING""",
-            (draw_number, group_number, location.outlet_name, location.entry_type),
+            """INSERT INTO snowball_info (draw_number, group_number, amount)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (draw_number, group_number) DO NOTHING""",
+            (draw_number, group_number, result.snowball_amount),
         )
 
 
@@ -64,15 +72,10 @@ def save_draw(result: DrawResult) -> bool:
                     ),
                 )
 
-        # Insert winning locations
-        if result.group1_result and result.group1_result.winning_locations:
-            save_group_result(
-                result.group1_result.winning_locations, cur, result.draw_number, 1
-            )
-        if result.group2_result and result.group2_result.winning_locations:
-            save_group_result(
-                result.group2_result.winning_locations, cur, result.draw_number, 2
-            )
+        # Insert group results
+        if result.group1_result and result.group2_result:
+            save_group_result(result.group1_result, cur, result.draw_number, 1)
+            save_group_result(result.group2_result, cur, result.draw_number, 2)
 
         conn.commit()
         return True
@@ -110,3 +113,7 @@ def get_latest_draw_number() -> Optional[int]:
             cur.close()
         if conn:
             conn.close()
+
+
+if __name__ == "__main__":
+    print(f"Latest draw number: {get_latest_draw_number()}")
