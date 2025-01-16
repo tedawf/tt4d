@@ -17,7 +17,7 @@ def populate_past_draws(start: int, end: int):
             else:
                 print(f"No data for draw {draw_no}")
 
-            time.sleep(2)  # Be nice to the server
+            time.sleep(1)  # Be nice to the server
         except Exception as e:
             print(f"Error processing draw {draw_no}: {e}")
             import traceback
