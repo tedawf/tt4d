@@ -19,13 +19,9 @@ env: # Display environment variables
 	@echo "Postgres Port: $(DB_PORT)"
 	@echo "Migration Path: $(MIGRATION_PATH)"
 
-.PHONY: venv
-venv: # Setup python venv
-	python -m venv .venv
-
 .PHONY: docker-up
 docker-up: # Start Docker containers
-	docker compose up -d
+	docker compose up -d --build
 
 .PHONY: docker-down
 docker-down: # Stop Docker containers

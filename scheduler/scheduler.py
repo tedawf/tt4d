@@ -1,15 +1,25 @@
+import logging
+import sys
 from datetime import datetime
-from pytz import timezone
+
 from apscheduler.schedulers.blocking import BlockingScheduler
+from pytz import timezone
 
 from scheduler.database import get_latest_draw_number, save_draw
 from scheduler.scraper import fetch_draw
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],  # This ensures logs go to docker logs
+)
+logger = logging.getLogger(__name__)
 
 
 def fetch_latest_draw():
     latest_draw_number = get_latest_draw_number()
     if latest_draw_number is None:
-        print("Error: Could not determine latest draw number")
+        logger.error("Error: Could not determine latest draw number")
         return
 
     next_draw_number = latest_draw_number + 1
@@ -17,21 +27,22 @@ def fetch_latest_draw():
         "%Y-%m-%d %H:%M:%S"
     )
 
-    print(f"[{current_time}] Checking for draw {next_draw_number}...")
+    logger.info(f"[{current_time}] Checking for draw {next_draw_number}...")
 
     latest_draw_result = fetch_draw(next_draw_number)
     if latest_draw_result:
         if save_draw(latest_draw_result):
-            print(f"Successfully saved new draw {next_draw_number}")
+            logger.info(f"Successfully saved new draw {next_draw_number}")
         else:
-            print(f"Failed to save draw {next_draw_number}")
+            logger.error(f"Failed to save draw {next_draw_number}")
     else:
-        print(f"No new draw data available.")
+        logger.info(f"No new draw data available.")
 
 
 if __name__ == "__main__":
-    scheduler = BlockingScheduler(timezone=timezone("Asia/Singapore"))
+    logger.info("Scheduler started. Press Ctrl+C to exit")
 
+    scheduler = BlockingScheduler(timezone=timezone("Asia/Singapore"))
     scheduler.add_job(
         fetch_latest_draw,
         trigger="cron",
@@ -41,11 +52,19 @@ if __name__ == "__main__":
         misfire_grace_time=300,  # Allow job to be run up to 5 minutes late
     )
 
-    print("Scheduler started. Press Ctrl+C to exit")
-    print("Will run every 5 minutes on Monday and Thursday between 6PM-12AM")
+    logger.info("Will run every 5 minutes on Monday and Thursday between 6PM-12AM")
+
+    # Run an immediate check on startup
+    logger.info("Running initial check on startup...")
+    fetch_latest_draw()
 
     try:
+        logger.info("Scheduler starting...")
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
+        logger.info("Received shutdown signal")
         scheduler.shutdown()
-        print("\nScheduler shut down successfully")
+        logger.info("Scheduler shut down successfully")
+    except Exception as e:
+        logger.error(f"Unexpected error in scheduler: {str(e)}", exc_info=True)
+        raise
