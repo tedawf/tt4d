@@ -5,7 +5,7 @@ import psycopg2
 from dotenv import load_dotenv
 from psycopg2.extras import DictCursor
 
-from toto_models import DrawResult, GroupResult
+from db.models import DrawResult, GroupResult
 
 # Load environment variables
 load_dotenv()

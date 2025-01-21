@@ -1,7 +1,7 @@
 import time
 
-from database import save_draw
-from toto_scraper import fetch_draw
+from db.database import save_draw
+from scheduler.scraper import fetch_draw
 
 
 def populate_past_draws(start: int, end: int):

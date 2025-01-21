@@ -6,7 +6,8 @@ from typing import List, Optional
 import requests
 from bs4 import BeautifulSoup
 
-from toto_models import DrawResult, GroupResult, WinningLocation, WinningShare
+from db.database import get_latest_draw_number
+from db.models import DrawResult, GroupResult, WinningLocation, WinningShare
 
 BASE_URL = "https://www.singaporepools.com.sg/en/product/sr/Pages/toto_results.aspx"
 
@@ -322,7 +323,8 @@ if __name__ == "__main__":
     print("Fetching results...")
 
     if len(sys.argv) != 2:
-        result = fetch_draw(9999)
+        latest_draw_number = get_latest_draw_number()
+        result = fetch_draw(latest_draw_number+1)
     else:
         result = fetch_draw(sys.argv[1])
 

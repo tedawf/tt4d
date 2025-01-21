@@ -2,8 +2,8 @@ from datetime import datetime
 from pytz import timezone
 from apscheduler.schedulers.blocking import BlockingScheduler
 
-from database import get_latest_draw_number, save_draw
-from toto_scraper import fetch_draw
+from db.database import get_latest_draw_number, save_draw
+from scheduler.scraper import fetch_draw
 
 
 def fetch_latest_draw():
