@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS toto_results (
 
 CREATE TABLE IF NOT EXISTS winning_shares (
     id SERIAL PRIMARY KEY,
-    draw_number INTEGER REFERENCES toto_results (draw_number),
+    draw_number INTEGER REFERENCES toto_results (draw_number) ON DELETE CASCADE,
     group_number INTEGER NOT NULL,
     share_amount DECIMAL NULL,
     winner_count INTEGER NULL,
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS winning_shares (
 
 CREATE TABLE IF NOT EXISTS snowball_info (
     id SERIAL PRIMARY KEY,
-    draw_number INTEGER REFERENCES toto_results (draw_number),
+    draw_number INTEGER REFERENCES toto_results (draw_number) ON DELETE CASCADE,
     group_number INTEGER NOT NULL,
     amount DECIMAL NOT NULL,
     UNIQUE (draw_number, group_number)
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS snowball_info (
 
 CREATE TABLE IF NOT EXISTS winning_locations (
     id SERIAL PRIMARY KEY,
-    draw_number INTEGER REFERENCES toto_results (draw_number),
+    draw_number INTEGER REFERENCES toto_results (draw_number) ON DELETE CASCADE,
     group_number INTEGER NOT NULL,
     outlet_name TEXT NOT NULL,
     entry_type TEXT NOT NULL,
@@ -35,5 +35,7 @@ CREATE TABLE IF NOT EXISTS winning_locations (
 );
 
 CREATE INDEX idx_draw_number ON toto_results (draw_number);
-
 CREATE INDEX idx_draw_date ON toto_results (draw_date);
+CREATE INDEX idx_winning_shares_draw_number ON winning_shares (draw_number);
+CREATE INDEX idx_snowball_info_draw_number ON snowball_info (draw_number);
+CREATE INDEX idx_winning_locations_draw_number ON winning_locations (draw_number);

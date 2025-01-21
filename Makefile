@@ -41,6 +41,6 @@ migrate-down: # Rollback last migration
 	migrate -path $(MIGRATION_PATH) -database "$(DATABASE_URL)" down 1
 
 .PHONY: migrate-reset
-migrate-reset: # Rollback all migrations
+migrate-reset: # DANGER: Rollback all migrations
 	migrate -path $(MIGRATION_PATH) -database "$(DATABASE_URL)" drop
 	migrate -path $(MIGRATION_PATH) -database "$(DATABASE_URL)" up

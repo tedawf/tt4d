@@ -40,8 +40,6 @@ def fetch_latest_draw():
 
 
 if __name__ == "__main__":
-    logger.info("Scheduler started. Press Ctrl+C to exit")
-
     scheduler = BlockingScheduler(timezone=timezone("Asia/Singapore"))
     scheduler.add_job(
         fetch_latest_draw,
@@ -52,8 +50,6 @@ if __name__ == "__main__":
         misfire_grace_time=300,  # Allow job to be run up to 5 minutes late
     )
 
-    logger.info("Will run every 5 minutes on Monday and Thursday between 6PM-12AM")
-
     # Run an immediate check on startup
     logger.info("Running initial check on startup...")
     fetch_latest_draw()
@@ -61,6 +57,7 @@ if __name__ == "__main__":
     try:
         logger.info("Scheduler starting...")
         scheduler.start()
+        logger.info("Scheduler started. Will run every 5 minutes on Monday and Thursday between 6PM-12AM")
     except (KeyboardInterrupt, SystemExit):
         logger.info("Received shutdown signal")
         scheduler.shutdown()
