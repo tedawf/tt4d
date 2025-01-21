@@ -1,6 +1,6 @@
 import time
 
-from db.database import save_draw
+from scheduler.database import save_draw
 from scheduler.scraper import fetch_draw
 
 

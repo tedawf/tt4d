@@ -5,7 +5,7 @@ import psycopg2
 from dotenv import load_dotenv
 from psycopg2.extras import DictCursor
 
-from db.models import DrawResult, GroupResult
+from scheduler.models import DrawResult, GroupResult
 
 # Load environment variables
 load_dotenv()
@@ -116,4 +116,4 @@ def get_latest_draw_number() -> Optional[int]:
 
 
 if __name__ == "__main__":
-    print(f"Latest draw number: {get_latest_draw_number()}")
+    print(f"Latest draw number in db: {get_latest_draw_number()}")

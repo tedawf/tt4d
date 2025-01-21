@@ -2,7 +2,7 @@ from datetime import datetime
 from pytz import timezone
 from apscheduler.schedulers.blocking import BlockingScheduler
 
-from db.database import get_latest_draw_number, save_draw
+from scheduler.database import get_latest_draw_number, save_draw
 from scheduler.scraper import fetch_draw
 
 

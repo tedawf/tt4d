@@ -1,21 +1,8 @@
-import os
+# app/main.py
+from fastapi import FastAPI
 
-from dotenv import load_dotenv
+app = FastAPI()
 
-
-def main():
-    # Load environment variables
-    load_dotenv()
-
-    print("Starting TOTO scraper...")
-
-    # Test database connection
-    try:
-        # We'll add database connection later
-        print("Database connection successful!")
-    except Exception as e:
-        print(f"Database connection failed: {e}")
-
-
-if __name__ == "__main__":
-    main()
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
