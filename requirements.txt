@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+python-dotenv
+pytz
+apscheduler
+alembic
+requests
+beautifulsoup4

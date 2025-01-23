@@ -1,6 +1,7 @@
 import time
 
-from scheduler.database import save_draw
+from db.database import SessionLocal
+from db.queries import save_draw
 from scheduler.scraper import fetch_draw
 
 
@@ -10,10 +11,14 @@ def populate_past_draws(start: int, end: int):
             print(f"Fetching draw {draw_no}...")
             draw_result = fetch_draw(draw_no)
             if draw_result:
-                if save_draw(draw_result):
-                    print(f"Successfully saved draw {draw_no}")
-                else:
-                    print(f"Failed to save draw {draw_no}")
+                db = SessionLocal()
+                try:
+                    if save_draw(db, draw_result):
+                        print(f"Successfully saved draw {draw_no}")
+                    else:
+                        print(f"Failed to save draw {draw_no}")
+                finally:
+                    db.close()
             else:
                 print(f"No data for draw {draw_no}")
 

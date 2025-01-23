@@ -6,7 +6,6 @@ from typing import List, Optional
 import requests
 from bs4 import BeautifulSoup
 
-from scheduler.database import get_latest_draw_number
 from scheduler.models import DrawResult, GroupResult, WinningLocation, WinningShare
 
 BASE_URL = "https://www.singaporepools.com.sg/en/product/sr/Pages/toto_results.aspx"
@@ -319,12 +318,19 @@ def print_group_result(group_name: str, result: GroupResult) -> None:
 # Test scraper
 if __name__ == "__main__":
     import sys
+    from db.database import SessionLocal
+    from db.queries import get_latest_draw_number
 
     print("Fetching results...")
 
     if len(sys.argv) != 2:
-        latest_draw_number = get_latest_draw_number()
-        result = fetch_draw(latest_draw_number + 1)
+        db = SessionLocal()
+        try:
+            latest_draw_number = get_latest_draw_number(db)
+            next_draw_number = latest_draw_number + 1
+            result = fetch_draw(next_draw_number)
+        finally:
+            db.close()
     else:
         result = fetch_draw(sys.argv[1])
 

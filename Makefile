@@ -1,8 +1,7 @@
-# Include .env file
 include .env
-export # Variables are available to both the Makefile AND any commands/processes it runs
+export # so env vars are available to both the Makefile AND any commands/processes it runs
 
-# Database URL for golang-migrate
+MIGRATION_PATH=migrations
 DATABASE_URL=postgres://$(DB_USER):$(DB_PASS)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 
 .DEFAULT_GOAL := help

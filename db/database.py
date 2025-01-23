@@ -7,16 +7,10 @@ from sqlalchemy.orm import sessionmaker
 
 load_dotenv()
 
-USER = os.getenv("DB_USER")
-PASS = os.getenv("DB_PASS")
-NAME = os.getenv("DB_NAME")
-HOST = os.getenv("DB_HOST")
-PORT = os.getenv("DB_PORT")
-DATABASE_URL = f"postgresql://{USER}:{PASS}@{HOST}:{PORT}/{NAME}"
+DATABASE_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
 
 
