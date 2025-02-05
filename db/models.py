@@ -1,5 +1,4 @@
 from sqlalchemy import (
-    ARRAY,
     DECIMAL,
     TEXT,
     TIMESTAMP,
@@ -8,6 +7,7 @@ from sqlalchemy import (
     Integer,
     UniqueConstraint,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.sql import func
 
 from db.database import Base
@@ -18,7 +18,7 @@ class TotoResult(Base):
 
     id = Column(Integer, primary_key=True)
     draw_number = Column(Integer, unique=True, nullable=False)
-    winning_numbers = Column(ARRAY(Integer), nullable=False)
+    winning_numbers = Column(postgresql.ARRAY(Integer), nullable=False)
     additional_number = Column(Integer, nullable=False)
     draw_date = Column(TIMESTAMP, nullable=False)
     jackpot = Column(DECIMAL, nullable=True)

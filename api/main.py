@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from db.database import get_db
@@ -74,4 +75,32 @@ async def get_draws(
         query.order_by(TotoResult.draw_date.desc()).offset(skip).limit(limit).all()
     )
 
+    return results
+
+
+@app.get("/search")
+async def search_numbers(
+    numbers: str = Query(
+        ..., description="Space-separated numbers to search for (e.g., '12 13 14')"
+    ),
+    db: Session = Depends(get_db),
+):
+    # Convert input string to list of integers
+    input_numbers = [int(n) for n in numbers.split()]
+
+    # Validate inputs
+    if not all(1 <= n <= 49 for n in input_numbers):
+        raise ValueError("All numbers must be between 1 and 49")
+    if len(input_numbers) > 6:
+        raise ValueError("Search must not be more than 6 numbers")
+    if len(set(input_numbers)) != len(input_numbers):
+        raise ValueError("Numbers must not repeat")
+
+    query = (
+        select(TotoResult)
+        .where(TotoResult.winning_numbers.contains(input_numbers))
+        .order_by(TotoResult.draw_date.desc())
+    )
+
+    results = db.execute(query).scalars().all()
     return results

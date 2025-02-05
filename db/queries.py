@@ -1,4 +1,4 @@
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from db.models import SnowballInfo, TotoResult, WinningLocation, WinningShare
