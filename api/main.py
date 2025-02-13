@@ -1,12 +1,21 @@
 from datetime import datetime
 from typing import Optional
 
+import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from api.models import (
+    DrawDetailsSchema,
+    DrawResultSchema,
+    SnowballInfoSchema,
+    WinningLocationSchema,
+    WinningShareSchema,
+)
 from db.database import get_db
 from db.models import SnowballInfo, TotoResult, WinningLocation, WinningShare
+from lib.parse_utils import split_outlet_address
 
 app = FastAPI()
 
@@ -24,7 +33,7 @@ async def get_latest_draw(db: Session = Depends(get_db)):
     return result
 
 
-@app.get("/draws/{draw_number}")
+@app.get("/draws/{draw_number}", response_model=DrawDetailsSchema)
 async def get_draw(draw_number: int, db: Session = Depends(get_db)):
     # Get the draw result
     result = db.query(TotoResult).filter(TotoResult.draw_number == draw_number).first()
@@ -47,16 +56,28 @@ async def get_draw(draw_number: int, db: Session = Depends(get_db)):
         .filter(WinningLocation.draw_number == draw_number)
         .all()
     )
+    processed_locations = []
+    for location in locations:
+        outlet_name, address = split_outlet_address(location.outlet_name)
+        new_location = WinningLocationSchema(
+            group_number=location.group_number,
+            outlet_name=outlet_name,
+            address=address,
+            entry_type=location.entry_type,
+        )
+        processed_locations.append(new_location)
 
-    return {
-        "draw": result,
-        "winning_shares": shares,
-        "snowball_info": snowballs,
-        "winning_locations": locations,
-    }
+    return DrawDetailsSchema(
+        draw_result=DrawResultSchema.model_validate(result),
+        winning_shares=[WinningShareSchema.model_validate(share) for share in shares],
+        snowball_info=[
+            SnowballInfoSchema.model_validate(snowball) for snowball in snowballs
+        ],
+        winning_locations=processed_locations,
+    )
 
 
-@app.get("/draws")
+@app.get("/draws", response_model=list[DrawResultSchema])
 async def get_draws(
     skip: int = 0,
     limit: int = 10,
@@ -104,3 +125,7 @@ async def search_numbers(
 
     results = db.execute(query).scalars().all()
     return results
+
+
+if __name__ == "__main__":
+    uvicorn.run("api.main:app", host="::", reload=True)
