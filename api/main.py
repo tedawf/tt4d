@@ -96,7 +96,34 @@ async def get_draws(
         query.order_by(TotoResult.draw_date.desc()).offset(skip).limit(limit).all()
     )
 
-    return results
+    draw_schemas = []
+
+    for result in results:
+        winner_shares = (
+            db.query(WinningShare)
+            .filter(WinningShare.draw_number == result.draw_number)
+            .all()
+        )
+
+        total_winners = sum(share.winner_count for share in winner_shares)
+        total_prize = sum(
+            share.winner_count * share.share_amount for share in winner_shares
+        )
+
+        draw_schemas.append(
+            DrawResultSchema(
+                draw_number=result.draw_number,
+                draw_date=result.draw_date,
+                winning_numbers=result.winning_numbers,
+                additional_number=result.additional_number,
+                jackpot=result.jackpot,
+                created_at=result.created_at,
+                total_winners=total_winners,
+                total_prize=total_prize,
+            )
+        )
+
+    return draw_schemas
 
 
 @app.get("/search")

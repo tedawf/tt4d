@@ -19,6 +19,8 @@ class DrawResultSchema(ApiModel):
     draw_date: datetime
     jackpot: float
     created_at: datetime
+    total_winners: int
+    total_prize: int
 
 
 class WinningShareSchema(ApiModel):
