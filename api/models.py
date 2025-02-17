@@ -14,11 +14,10 @@ class ApiModel(BaseModel):
 
 class DrawResultSchema(ApiModel):
     draw_number: int
+    draw_date: datetime
     winning_numbers: list[int]
     additional_number: int
-    draw_date: datetime
     jackpot: float
-    created_at: datetime
     total_winners: int
     total_prize: int
 

@@ -103,11 +103,16 @@ async def get_draws(
             db.query(WinningShare)
             .filter(WinningShare.draw_number == result.draw_number)
             .all()
+            or []
         )
 
-        total_winners = sum(share.winner_count for share in winner_shares)
-        total_prize = sum(
-            share.winner_count * share.share_amount for share in winner_shares
+        total_winners = (
+            sum(share.winner_count for share in winner_shares) if winner_shares else 0
+        )
+        total_prize = (
+            sum(share.winner_count * share.share_amount for share in winner_shares)
+            if winner_shares
+            else 0
         )
 
         draw_schemas.append(
@@ -116,8 +121,7 @@ async def get_draws(
                 draw_date=result.draw_date,
                 winning_numbers=result.winning_numbers,
                 additional_number=result.additional_number,
-                jackpot=result.jackpot,
-                created_at=result.created_at,
+                jackpot=result.jackpot if result.jackpot is not None else 0.0,
                 total_winners=total_winners,
                 total_prize=total_prize,
             )
