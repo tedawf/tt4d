@@ -68,7 +68,9 @@ async def get_draw(draw_number: int, db: Session = Depends(get_db)):
         processed_locations.append(new_location)
 
     return DrawDetailsSchema(
-        draw_result=DrawResultSchema.model_validate(result),
+        draw_result=DrawResultSchema.model_validate(
+            get_draw_result_extra(db, result, shares)
+        ),
         winning_shares=[WinningShareSchema.model_validate(share) for share in shares],
         snowball_info=[
             SnowballInfoSchema.model_validate(snowball) for snowball in snowballs
@@ -96,38 +98,36 @@ async def get_draws(
         query.order_by(TotoResult.draw_date.desc()).offset(skip).limit(limit).all()
     )
 
-    draw_schemas = []
+    draw_results = []
 
     for result in results:
-        winner_shares = (
+        shares = (
             db.query(WinningShare)
             .filter(WinningShare.draw_number == result.draw_number)
             .all()
-            or []
         )
+        draw_results.append(get_draw_result_extra(db, result, shares))
 
-        total_winners = (
-            sum(share.winner_count for share in winner_shares) if winner_shares else 0
-        )
-        total_prize = (
-            sum(share.winner_count * share.share_amount for share in winner_shares)
-            if winner_shares
-            else 0
-        )
+    return draw_results
 
-        draw_schemas.append(
-            DrawResultSchema(
-                draw_number=result.draw_number,
-                draw_date=result.draw_date,
-                winning_numbers=result.winning_numbers,
-                additional_number=result.additional_number,
-                jackpot=result.jackpot if result.jackpot is not None else 0.0,
-                total_winners=total_winners,
-                total_prize=total_prize,
-            )
-        )
 
-    return draw_schemas
+def get_draw_result_extra(db, result, shares):
+    total_winners = sum(share.winner_count for share in shares) if shares else 0
+    total_prize = (
+        sum(share.winner_count * share.share_amount for share in shares)
+        if shares
+        else 0
+    )
+
+    return DrawResultSchema(
+        draw_number=result.draw_number,
+        draw_date=result.draw_date,
+        winning_numbers=result.winning_numbers,
+        additional_number=result.additional_number,
+        jackpot=result.jackpot if result.jackpot is not None else 0.0,
+        total_winners=total_winners,
+        total_prize=total_prize,
+    )
 
 
 @app.get("/search")
