@@ -3,8 +3,10 @@ from sqlalchemy import (
     TEXT,
     TIMESTAMP,
     Column,
+    DateTime,
     ForeignKey,
     Integer,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects import postgresql
@@ -60,3 +62,17 @@ class WinningLocation(Base):
     __table_args__ = (
         UniqueConstraint("draw_number", "group_number", "outlet_name", "entry_type"),
     )
+
+
+class TotoPage(Base):
+    __tablename__ = "toto_page"
+
+    id = Column(Integer, primary_key=True, index=True)
+    draw_number = Column(
+        Integer,
+        ForeignKey("toto_results.draw_number", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    html_content = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

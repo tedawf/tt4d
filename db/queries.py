@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from db.models import SnowballInfo, TotoResult, WinningLocation, WinningShare
+from db.models import SnowballInfo, TotoPage, TotoResult, WinningLocation, WinningShare
 from scheduler.models import DrawResult
 
 
@@ -106,3 +106,28 @@ def save_draw(db: Session, draw_result: DrawResult) -> bool:
     except Exception as e:
         db.rollback()
         raise RuntimeError(f"Error saving draw: {str(e)}") from e
+
+
+def save_html_content(db: Session, draw_number: int, html_content: str) -> bool:
+    try:
+        # Check if already exists
+        existing = (
+            db.query(TotoPage).filter(TotoPage.draw_number == draw_number).first()
+        )
+
+        if existing:
+            raise ValueError(f"Html content for draw {draw_number} already exists")
+
+        toto_page = TotoPage(draw_number=draw_number, html_content=html_content)
+        db.add(toto_page)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"Error saving HTML content: {e}")
+        return False
+
+
+def get_html_content(db: Session, draw_number: int) -> str:
+    toto_page = db.query(TotoPage).filter(TotoPage.draw_number == draw_number).first()
+    return toto_page.html_content if toto_page else None

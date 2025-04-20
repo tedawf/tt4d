@@ -6,6 +6,7 @@ from typing import List, Optional
 import requests
 from bs4 import BeautifulSoup
 
+from db.queries import get_html_content, save_html_content
 from scheduler.models import DrawResult, GroupResult, WinningLocation, WinningShare
 
 BASE_URL = "https://www.singaporepools.com.sg/en/product/sr/Pages/toto_results.aspx"
@@ -322,34 +323,56 @@ if __name__ == "__main__":
     from db.queries import get_latest_draw_number
 
     print("Fetching results...")
+    db = SessionLocal()
 
-    if len(sys.argv) != 2:
-        db = SessionLocal()
-        try:
-            latest_draw_number = get_latest_draw_number(db)
-            next_draw_number = latest_draw_number + 1
-            result = fetch_draw(next_draw_number)
-        finally:
-            db.close()
-    else:
-        result = fetch_draw(sys.argv[1])
+    try:
 
-    if result:
-        print("Parsing completed")
-        print("\nResults:")
-        print("Draw Date:", result.draw_date)
-        print("Draw Number:", result.draw_number)
-        print("Winning Numbers:", result.winning_numbers)
-        print("Additional Number:", result.additional_number)
+        # Get latest draw number if not provided
+        if len(sys.argv) != 2:
+            draw_number = get_latest_draw_number(db) + 1
+        else:
+            draw_number = sys.argv[1]
 
-        if result.jackpot:
-            print("Group 1 Prize:", f"${result.jackpot}")
+        # First check if we already have the html content
+        html_content = get_html_content(db, draw_number)
 
-        if result.winning_shares:
-            print("\nWinning Shares:")
-            for share in result.winning_shares:
-                print(f"Group {share.group}: ${share.amount} ({share.count} winners)")
-        if result.group1_result:
-            print_group_result("Group 1", result.group1_result)
-        if result.group2_result:
-            print_group_result("Group 2", result.group2_result)
+        if html_content:
+            print(f"Using cached HTML for draw {draw_number}")
+            result = _parse_draw(html_content, draw_number)
+        else:
+            print(f"Fetching draw {draw_number} from website...")
+            response = fetch_draw(draw_number)
+
+            if not response:
+                print(f"No data for draw {draw_number}")
+                
+            # Store the raw HTML
+            if hasattr(response, 'raw_html') and response.raw_html:
+                save_html_content(db, draw_number, response.raw_html)
+            
+            draw_result = response
+
+        if result:
+            print("Parsing completed")
+            print("\nResults:")
+            print("Draw Date:", result.draw_date)
+            print("Draw Number:", result.draw_number)
+            print("Winning Numbers:", result.winning_numbers)
+            print("Additional Number:", result.additional_number)
+
+            if result.jackpot:
+                print("Group 1 Prize:", f"${result.jackpot}")
+
+            if result.winning_shares:
+                print("\nWinning Shares:")
+                for share in result.winning_shares:
+                    print(
+                        f"Group {share.group}: ${share.amount} ({share.count} winners)"
+                    )
+            if result.group1_result:
+                print_group_result("Group 1", result.group1_result)
+            if result.group2_result:
+                print_group_result("Group 2", result.group2_result)
+
+    finally:
+        db.close()
