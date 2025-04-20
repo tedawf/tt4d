@@ -23,7 +23,7 @@ def fetch_new_draw():
 
         logger.info(f"[{current_time}] Checking for draw {next_draw_number}...")
 
-        latest_draw_result = fetch_draw(next_draw_number)
+        latest_draw_result = fetch_draw(db, next_draw_number)
         if latest_draw_result:
             try:
                 if save_draw(db, latest_draw_result):
