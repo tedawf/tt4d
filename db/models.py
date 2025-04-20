@@ -1,13 +1,17 @@
 from sqlalchemy import (
     DECIMAL,
-    TEXT,
     TIMESTAMP,
+    Boolean,
     Column,
+    DateTime,
     ForeignKey,
     Integer,
+    String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from db.database import Base
@@ -48,15 +52,51 @@ class SnowballInfo(Base):
     __table_args__ = (UniqueConstraint("draw_number", "group_number"),)
 
 
-class WinningLocation(Base):
-    __tablename__ = "winning_locations"
+class TotoPage(Base):
+    __tablename__ = "toto_page"
+
+    id = Column(Integer, primary_key=True, index=True)
+    draw_number = Column(
+        Integer,
+        ForeignKey("toto_results.draw_number", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    html_content = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class WinningTicket(Base):
+    __tablename__ = "winning_tickets"
 
     id = Column(Integer, primary_key=True)
-    draw_number = Column(Integer, ForeignKey("toto_results.draw_number"))
-    group_number = Column(Integer, nullable=False)
-    outlet_name = Column(TEXT, nullable=False)
-    entry_type = Column(TEXT, nullable=False)
-
-    __table_args__ = (
-        UniqueConstraint("draw_number", "group_number", "outlet_name", "entry_type"),
+    draw_number = Column(
+        Integer,
+        ForeignKey("toto_results.draw_number", ondelete="CASCADE"),
+        nullable=False,
     )
+    group_number = Column(Integer, nullable=False)
+    outlet_name = Column(String, nullable=False)
+    outlet_address = Column(String, nullable=True)
+    entry_type = Column(String, nullable=False)
+    is_itoto = Column(Boolean, default=False)
+    ticket_order = Column(Integer, nullable=False)
+
+    itoto_locations = relationship("ItotoLocation", back_populates="winning_ticket")
+
+    __table_args__ = (UniqueConstraint("draw_number", "group_number", "ticket_order"),)
+
+
+class ItotoLocation(Base):
+    __tablename__ = "itoto_locations"
+
+    id = Column(Integer, primary_key=True)
+    ticket_id = Column(Integer, ForeignKey("winning_tickets.id"), nullable=False)
+    outlet_name = Column(String, nullable=False)
+    outlet_address = Column(String, nullable=True)
+    share_count = Column(Integer, default=1)
+    location_order = Column(Integer, nullable=False)
+
+    winning_ticket = relationship("WinningTicket", back_populates="itoto_locations")
+
+    __table_args__ = (UniqueConstraint("ticket_id", "location_order"),)

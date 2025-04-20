@@ -4,18 +4,18 @@ from typing import Optional
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from api.models import (
     DrawDetailsSchema,
     DrawResultSchema,
+    ItotoLocationSchema,
     SnowballInfoSchema,
-    WinningLocationSchema,
     WinningShareSchema,
+    WinningTicketSchema,
 )
 from db.database import get_db
-from db.models import SnowballInfo, TotoResult, WinningLocation, WinningShare
-from lib.parse_utils import split_outlet_address
+from db.models import SnowballInfo, TotoResult, WinningShare, WinningTicket
 
 app = FastAPI()
 
@@ -50,22 +50,52 @@ async def get_draw(draw_number: int, db: Session = Depends(get_db)):
         db.query(SnowballInfo).filter(SnowballInfo.draw_number == draw_number).all()
     )
 
-    # Get winning locations
-    locations = (
-        db.query(WinningLocation)
-        .filter(WinningLocation.draw_number == draw_number)
+    # Get winning tickets
+    tickets = (
+        db.query(WinningTicket)
+        .options(selectinload(WinningTicket.itoto_locations))
+        .filter(WinningTicket.draw_number == draw_number)
         .all()
     )
-    processed_locations = []
-    for location in locations:
-        outlet_name, address = split_outlet_address(location.outlet_name)
-        new_location = WinningLocationSchema(
-            group_number=location.group_number,
-            outlet_name=outlet_name,
-            address=address,
-            entry_type=location.entry_type,
-        )
-        processed_locations.append(new_location)
+
+    processed_tickets = []
+
+    for ticket in tickets:
+        if ticket.is_itoto:
+            # For iTOTO tickets
+            itoto_locations_schema = []
+
+            if ticket.itoto_locations:
+                for loc in ticket.itoto_locations:
+                    itoto_locations_schema.append(
+                        ItotoLocationSchema(
+                            outlet_name=loc.outlet_name,
+                            address=loc.outlet_address,
+                            share_count=loc.share_count,
+                        )
+                    )
+
+            processed_tickets.append(
+                WinningTicketSchema(
+                    group_number=ticket.group_number,
+                    outlet_name="iTOTO - System 12",
+                    address="",
+                    entry_type=ticket.entry_type,
+                    is_itoto=True,
+                    itoto_locations=itoto_locations_schema,
+                )
+            )
+        else:
+            # For regular tickets
+            processed_tickets.append(
+                WinningTicketSchema(
+                    group_number=ticket.group_number,
+                    outlet_name=ticket.outlet_name,
+                    address=ticket.outlet_address,
+                    entry_type=ticket.entry_type,
+                    is_itoto=False,
+                )
+            )
 
     return DrawDetailsSchema(
         draw_result=DrawResultSchema.model_validate(
@@ -75,7 +105,7 @@ async def get_draw(draw_number: int, db: Session = Depends(get_db)):
         snowball_info=[
             SnowballInfoSchema.model_validate(snowball) for snowball in snowballs
         ],
-        winning_locations=processed_locations,
+        winning_tickets=processed_tickets,
     )
 
 
