@@ -11,6 +11,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from db.database import Base
@@ -81,6 +82,8 @@ class WinningTicket(Base):
     is_itoto = Column(Boolean, default=False)
     ticket_order = Column(Integer, nullable=False)
 
+    itoto_locations = relationship("ItotoLocation", back_populates="winning_ticket")
+
     __table_args__ = (UniqueConstraint("draw_number", "group_number", "ticket_order"),)
 
 
@@ -93,5 +96,7 @@ class ItotoLocation(Base):
     outlet_address = Column(String, nullable=True)
     share_count = Column(Integer, default=1)
     location_order = Column(Integer, nullable=False)
+
+    winning_ticket = relationship("WinningTicket", back_populates="itoto_locations")
 
     __table_args__ = (UniqueConstraint("ticket_id", "location_order"),)
