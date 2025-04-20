@@ -1,7 +1,14 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from db.models import SnowballInfo, TotoPage, TotoResult, WinningLocation, WinningShare
+from db.models import (
+    ItotoLocation,
+    SnowballInfo,
+    TotoPage,
+    TotoResult,
+    WinningTicket,
+    WinningShare,
+)
 from scheduler.models import DrawResult
 
 
@@ -10,19 +17,37 @@ def get_latest_draw_number(db: Session) -> int:
     return latest_draw.draw_number if latest_draw else 0
 
 
-def _save_winning_locations(
-    db: Session, draw_number: int, group_number: int, locations: list
+def _save_winning_tickets(
+    db: Session, draw_number: int, group_number: int, tickets: list
 ):
-    winning_locations = [
-        WinningLocation(
+    for ticket_order, ticket in enumerate(tickets, 1):
+        winning_ticket = WinningTicket(
             draw_number=draw_number,
             group_number=group_number,
-            outlet_name=location.outlet_name,
-            entry_type=location.entry_type,
+            outlet_name=ticket.outlet_name,
+            outlet_address=ticket.outlet_address,
+            entry_type=ticket.entry_type,
+            is_itoto=ticket.is_itoto,
+            ticket_order=ticket_order,
         )
-        for location in locations
-    ]
-    db.add_all(winning_locations)
+        db.add(winning_ticket)
+        db.flush() # Get id
+
+        # If it's an iTOTO ticket, save all the locations
+        if ticket.is_itoto and ticket.itoto_locations:
+            _save_itoto_locations(db, winning_ticket.id, ticket.itoto_locations)
+
+
+def _save_itoto_locations(db: Session, ticket_id: int, locations: list):
+    for location_order, location in enumerate(locations, 1):
+        itoto_location = ItotoLocation(
+            ticket_id=ticket_id,
+            outlet_name=location.outlet_name,
+            outlet_address=location.outlet_address,
+            share_count=location.share_count,
+            location_order=location_order,
+        )
+        db.add(itoto_location)
 
 
 def _save_snowball_info(
@@ -79,11 +104,11 @@ def save_draw(db: Session, draw_result: DrawResult) -> bool:
                 continue
 
             if group_result.has_winner:
-                _save_winning_locations(
+                _save_winning_tickets(
                     db,
                     draw_result.draw_number,
                     group_num,
-                    group_result.winning_locations,
+                    group_result.winning_tickets,
                 )
             elif group_result.snowball_amount:
                 _save_snowball_info(
@@ -102,7 +127,6 @@ def save_draw(db: Session, draw_result: DrawResult) -> bool:
             raise RuntimeError(
                 f"Foreign key violation. Make sure parent record exists first: {str(e)}"
             ) from e
-        raise ValueError(f"Draw {draw_result.draw_number} already exists") from e
     except Exception as e:
         db.rollback()
         raise RuntimeError(f"Error saving draw: {str(e)}") from e

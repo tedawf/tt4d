@@ -5,25 +5,55 @@ from typing import List, Optional
 
 import requests
 from bs4 import BeautifulSoup
+from sqlalchemy.orm import Session
 
 from db.queries import get_html_content, save_html_content
-from scheduler.models import DrawResult, GroupResult, WinningLocation, WinningShare
+from scheduler.models import (
+    DrawResult,
+    GroupResult,
+    ItotoLocation,
+    WinningShare,
+    WinningTicket,
+)
 
 BASE_URL = "https://www.singaporepools.com.sg/en/product/sr/Pages/toto_results.aspx"
 
 
-def fetch_draw(draw_no):
-    """Fetch TOTO draw results"""
+def fetch_draw(db: Session, draw_no: int):
+    """Fetch TOTO draw results from db, if not website"""
+
+    # First check if we already have the html content
+    html_content = get_html_content(db, draw_no)
+    if html_content:
+        print(f"Using cached HTML for draw {draw_no}")
+        result = _parse_draw(html_content, draw_no)
+        return result
+
+    print(f"Fetching draw {draw_no} from website...")
     draw_str = f"DrawNumber={draw_no}"
     encoded_draw_no = base64.b64encode(draw_str.encode()).decode()
 
     try:
         response = requests.get(f"{BASE_URL}?sppl={encoded_draw_no}")
         if response.status_code == 200:
-            return _parse_draw(response.text, draw_no)
+            raw_html = response.text.strip()
+
+            result = _parse_draw(raw_html, draw_no)
+            if not result:
+                print(f"No data parsed for draw {draw_no}")
+                return None
+            
+            # Store the raw HTML
+            save_success = save_html_content(db, draw_no, raw_html)
+            if save_success:
+                print(f"HTML content for draw {draw_no} saved successfully")
+
+            return result
+
         else:
             print(f"Failed to fetch page: {response.status_code}")
             return None
+
     except Exception as e:
         print(f"Error fetching page: {e}")
         return None
@@ -124,48 +154,6 @@ def _parse_winning_shares(shares_table: str) -> List[WinningShare]:
     return winning_shares
 
 
-def _parse_winning_location(
-    location_text: str, is_itoto: bool = False, itoto_system: str = ""
-) -> Optional[WinningLocation]:
-    """
-    Parse a location text into a WinningLocation object.
-
-    Args:
-        location_text: The text to parse
-        is_itoto: Whether this is an iTOTO location
-        itoto_system: The iTOTO system type (e.g., "System 12")
-    """
-    try:
-        if not location_text or not isinstance(location_text, str):
-            return None
-
-        if is_itoto:
-            # For iTOTO locations, get the full outlet name and append iTOTO system
-            outlet_name = location_text.replace("•", "").strip()
-            entry_type = f"iTOTO - System {itoto_system}"
-        else:
-            # Split by parentheses
-            parts = location_text.split("(")
-            if len(parts) < 2:
-                return None
-
-            # Get everything before the parentheses as outlet name
-            outlet_name = parts[0].strip()
-
-            # Get entry type from within parentheses
-            entry_type = parts[-1].replace(")", "").strip()
-
-        # Handle case: Singapore Pools Account Betting Service - -
-        outlet_name = outlet_name.replace(" - -", "")
-
-        return WinningLocation(outlet_name, entry_type)
-
-    except Exception as e:
-        print(f"Error parsing winning location: {e}")
-        print(f"Location text: {location_text}")
-        return None
-
-
 def _parse_group_results(winning_outlets_div) -> tuple[GroupResult, GroupResult]:
     """
     Parse Group 1 and Group 2 results from the winning outlets div.
@@ -191,77 +179,172 @@ def _parse_group_results(winning_outlets_div) -> tuple[GroupResult, GroupResult]
                 if amount_match:
                     group2.snowball_amount = _parse_money_amount(amount_match.group(0))
 
-        # Parse Group 1 winning locations
-        g1_locations = []
+        # Parse Group 1 winning tickets
+        g1_tickets = []
         g1_section = winning_outlets_div.find(
             "p", string=lambda x: x and "Group 1 winning tickets sold at:" in x
         )
         if g1_section and g1_section.find_next("ul"):
-            for li in g1_section.find_next("ul").find_all("li"):
-                if not li or not li.text:
-                    continue
+            g1_tickets = _parse_winning_tickets(g1_section.find_next("ul"))
 
-                text = li.text.strip()
-                if "iTOTO" in text:
-                    # Extract system number using regex
-                    system_type = "12"
-                    match = re.search(r"System\s+(\d+)", text)
-                    if match:
-                        system_type = match.group(1)  # This will give just the number
+        group1.winning_tickets = g1_tickets
+        group1.has_winner = bool(g1_tickets)
 
-                    # Parse each iTOTO outlet
-                    for line in text.split("\n"):
-                        if "•" in line:
-                            location = _parse_winning_location(
-                                line, is_itoto=True, itoto_system=system_type
-                            )
-                            if location:
-                                g1_locations.append(location)
-                else:
-                    location = _parse_winning_location(text)
-                    if location:
-                        g1_locations.append(location)
-
-        group1.winning_locations = g1_locations
-        group1.has_winner = bool(g1_locations)
-
-        # Parse Group 2 winning locations (similar logic)
-        g2_locations = []
+        # Parse Group 2
+        g2_tickets = []
         g2_section = winning_outlets_div.find(
             "p", string=lambda x: x and "Group 2 winning tickets sold at:" in x
         )
         if g2_section and g2_section.find_next("ul"):
-            for li in g2_section.find_next("ul").find_all("li"):
-                if not li or not li.text:
-                    continue
+            g2_tickets = _parse_winning_tickets(g2_section.find_next("ul"))
 
-                text = li.text.strip()
-                if "iTOTO" in text:
-                    system_type = None
-                    match = re.search(r"System\s+(\d+)", text)
-                    if match:
-                        system_type = match.group(1)
-
-                    for line in text.split("\n"):
-                        if "•" in line:
-                            location = _parse_winning_location(
-                                line, is_itoto=True, itoto_system=system_type
-                            )
-                            if location:
-                                g2_locations.append(location)
-                else:
-                    location = _parse_winning_location(text)
-                    if location:
-                        g2_locations.append(location)
-
-        group2.winning_locations = g2_locations
-        group2.has_winner = bool(g2_locations)
+        group2.winning_tickets = g2_tickets
+        group2.has_winner = bool(g2_tickets)
 
     except Exception as e:
         print(f"Error parsing group results: {e}")
         print(f"Winning outlets div: {winning_outlets_div}")
 
     return group1, group2
+
+
+def _parse_winning_tickets(ul) -> list:
+    tickets = []
+    ticket_order = 0
+
+    if not ul:
+        return tickets
+
+    for li in ul.find_all("li", recursive=False):
+        if not li or not li.text.strip():
+            continue
+
+        text = li.text.strip()
+        ticket_order += 1
+
+        # Check if its itoto ticket
+        if text.startswith("iTOTO"):
+            itoto_ticket = WinningTicket(
+                outlet_name="iTOTO - System 12",
+                outlet_address="-",
+                entry_type="iTOTO - System 12",
+                is_itoto=True,
+            )
+
+            # Parse all locations for this iTOTO ticket
+            location_texts = []
+
+            lines = li.get_text(separator="\n").strip().split("\n")
+
+            # Skip first line
+            for line in lines[1:]:
+                line = line.strip()
+                if line and "•" in line:
+                    location_texts.append(line)
+
+            # Parse each itoto location
+            for idx, location_text in enumerate(location_texts):
+                itoto_location = _parse_itoto_ticket(location_text)
+                if itoto_location:
+                    itoto_ticket.itoto_locations.append(itoto_location)
+
+            tickets.append(itoto_ticket)
+
+        else:
+            parsed_tickets = _parse_regular_tickets(text)
+            if parsed_tickets:
+                tickets.extend(parsed_tickets)
+
+    return tickets
+
+
+def _parse_regular_tickets(location_text: str) -> List[WinningTicket]:
+    result_tickets = []
+
+    try:
+        if not location_text or not isinstance(location_text, str):
+            return result_tickets
+
+        # Split by parentheses to get outlet address and entry type
+        parts = location_text.split("(")
+        if len(parts) < 2:
+            return None
+
+        outlet_part = parts[0].strip()
+        outlet_name, outlet_address = _parse_address(outlet_part)
+
+        # Remove parentheses
+        entry_part = parts[-1].replace(")", "").strip()
+
+        # Parse count and entry type
+        count = 1
+        entry_type = entry_part
+
+        count_match = re.match(r"(\d+)\s+(.+)", entry_part)
+        if count_match:
+            count = int(count_match.group(1))
+            entry_type = count_match.group(2).strip()
+
+        # Create a ticket object for each share
+        for _ in range(count):
+            ticket = WinningTicket(
+                outlet_name=outlet_name,
+                outlet_address=outlet_address,
+                entry_type=entry_type,
+                is_itoto=False,
+            )
+            result_tickets.append(ticket)
+
+        return result_tickets
+
+    except Exception as e:
+        print(f"Error parsing regular tickets: {e}")
+        print(f"Location text: {location_text}")
+        return result_tickets
+
+
+def _parse_itoto_ticket(location_text: str) -> Optional[ItotoLocation]:
+    try:
+        if not location_text or not isinstance(location_text, str):
+            return None
+
+        # Remove the bullet point and whitespace
+        outlet_text = re.sub(r"^\s*•\s*", "", location_text, flags=re.MULTILINE)
+
+        # Get share count
+        share_count = 1
+        share_match = re.search(r"\((\d+)\)$", location_text)
+        if share_match:
+            share_count = int(share_match.group(1))
+            # Remove the share count from the text
+            outlet_text = re.sub(r"\(\d+\)$", "", outlet_text).strip()
+
+        outlet_name, outlet_address = _parse_address(outlet_text)
+
+        return ItotoLocation(
+            outlet_name=outlet_name,
+            outlet_address=outlet_address,
+            share_count=share_count,
+        )
+
+    except Exception as e:
+        print(f"Error parsing iTOTO location: {e}")
+        print(f"Location text: {location_text}")
+        return None
+
+
+def _parse_address(location_str: str):
+    location_str = location_str.strip()
+
+    # it works cos of the last " - ", unit number no count
+    parts = location_str.rsplit(" - ", 1)
+
+    if len(parts) == 2:
+        outlet_name, address = parts
+    else:
+        outlet_name, address = location_str, "-"  # No address found
+
+    return outlet_name, address
 
 
 def _parse_number(number_str):
@@ -308,17 +391,36 @@ def print_group_result(group_name: str, result: GroupResult) -> None:
         if result.snowball_amount:
             print(f"Snowball Amount: ${result.snowball_amount:,.2f}")
 
-    # Print winning locations if any
-    if result.winning_locations and any(result.winning_locations):
-        print("\nWinning Locations:")
-        for loc in result.winning_locations:
-            if loc:  # Check if location is not None
-                print(f"• {loc.outlet_name} ({loc.entry_type})")
+    # Print winning tickets if any
+    if result.winning_tickets and any(result.winning_tickets):
+        print("\nWinning tickets sold at:")
+
+        # Print regular tickets
+        regular_tickets = [t for t in result.winning_tickets if not t.is_itoto]
+        if regular_tickets:
+            for ticket in regular_tickets:
+                print(
+                    f"{ticket.outlet_name} - {ticket.outlet_address} ( {ticket.entry_type} )"
+                )
+
+        # Print iTOTO tickets
+        itoto_tickets = [t for t in result.winning_tickets if t.is_itoto]
+        for ticket in itoto_tickets:
+            print(ticket.entry_type)
+            for loc in ticket.itoto_locations:
+                bullet = "•"
+                if loc.share_count > 1:
+                    print(
+                        f"{bullet} {loc.outlet_name} - {loc.outlet_address} ({loc.share_count})"
+                    )
+                else:
+                    print(f"{bullet} {loc.outlet_name} - {loc.outlet_address}")
 
 
 # Test scraper
 if __name__ == "__main__":
     import sys
+
     from db.database import SessionLocal
     from db.queries import get_latest_draw_number
 
@@ -333,24 +435,7 @@ if __name__ == "__main__":
         else:
             draw_number = sys.argv[1]
 
-        # First check if we already have the html content
-        html_content = get_html_content(db, draw_number)
-
-        if html_content:
-            print(f"Using cached HTML for draw {draw_number}")
-            result = _parse_draw(html_content, draw_number)
-        else:
-            print(f"Fetching draw {draw_number} from website...")
-            response = fetch_draw(draw_number)
-
-            if not response:
-                print(f"No data for draw {draw_number}")
-                
-            # Store the raw HTML
-            if hasattr(response, 'raw_html') and response.raw_html:
-                save_html_content(db, draw_number, response.raw_html)
-            
-            draw_result = response
+        result = fetch_draw(db, draw_number)
 
         if result:
             print("Parsing completed")

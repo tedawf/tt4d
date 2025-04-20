@@ -8,17 +8,15 @@ from scheduler.scraper import fetch_draw
 def populate_past_draws(start: int, end: int):
     for draw_no in range(start, end + 1):
         try:
+            db = SessionLocal()
             print(f"Fetching draw {draw_no}...")
-            draw_result = fetch_draw(draw_no)
+            draw_result = fetch_draw(db, draw_no)
             if draw_result:
-                db = SessionLocal()
-                try:
-                    if save_draw(db, draw_result):
-                        print(f"Successfully saved draw {draw_no}")
-                    else:
-                        print(f"Failed to save draw {draw_no}")
-                finally:
-                    db.close()
+                if save_draw(db, draw_result):
+                    print(f"Successfully saved draw {draw_no}")
+                else:
+                    print(f"Failed to save draw {draw_no}")
+
             else:
                 print(f"No data for draw {draw_no}")
 
@@ -28,6 +26,9 @@ def populate_past_draws(start: int, end: int):
             import traceback
 
             traceback.print_exc()  # This will print the full error trace
+
+        finally:
+            db.close()
 
 
 if __name__ == "__main__":

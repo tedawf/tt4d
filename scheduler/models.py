@@ -11,9 +11,23 @@ class WinningShare:
 
 
 @dataclass
-class WinningLocation:
+class ItotoLocation:
     outlet_name: str
+    outlet_address: str
+    share_count: int
+
+
+@dataclass
+class WinningTicket:
+    outlet_name: str
+    outlet_address: str
     entry_type: str
+    is_itoto: bool
+    itoto_locations: Optional[List[ItotoLocation]] = None
+
+    def __post_init__(self):
+        if self.itoto_locations is None:
+            self.itoto_locations = []
 
 
 @dataclass
@@ -22,11 +36,11 @@ class GroupResult:
     prize_amount: Optional[float] = None
     winning_count: int = 0
     snowball_amount: Optional[float] = None
-    winning_locations: List[WinningLocation] = None
+    winning_tickets: List[WinningTicket] = None
 
     def __post_init__(self):
-        if self.winning_locations is None:
-            self.winning_locations = []
+        if self.winning_tickets is None:
+            self.winning_tickets = []
 
 
 @dataclass
