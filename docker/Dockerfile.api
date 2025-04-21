@@ -1,11 +1,18 @@
 FROM python:3.13.1-slim
 
-WORKDIR /app
+WORKDIR /
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    make \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -L https://github.com/golang-migrate/migrate/releases/download/v4.15.2/migrate.linux-amd64.tar.gz \
+  | tar xvz -C /usr/local/bin && chmod +x /usr/local/bin/migrate
 
 COPY . .
+RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8000
 

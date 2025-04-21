@@ -84,16 +84,17 @@ def save_draw(db: Session, draw_result: DrawResult) -> bool:
         db.flush()  # This ensures the main record exists before adding related records
 
         # Save winning shares
-        winning_shares = [
-            WinningShare(
-                draw_number=draw_result.draw_number,
-                group_number=share.group,
-                share_amount=share.amount,
-                winner_count=share.count,
-            )
-            for share in draw_result.winning_shares
-        ]
-        db.add_all(winning_shares)
+        if draw_result.winning_shares:
+            winning_shares = [
+                WinningShare(
+                    draw_number=draw_result.draw_number,
+                    group_number=share.group,
+                    share_amount=share.amount,
+                    winner_count=share.count,
+                )
+                for share in draw_result.winning_shares
+            ]
+            db.add_all(winning_shares)
 
         # Process group results
         for group_num, group_result in [
