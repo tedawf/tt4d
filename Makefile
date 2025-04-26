@@ -1,8 +1,6 @@
 include .env
 export # so env vars are available to both the Makefile AND any commands/processes it runs
 
-MIGRATION_PATH=migrations
-DATABASE_URL=postgres://$(DB_USER):$(DB_PASS)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 
 .DEFAULT_GOAL := help
 .PHONY: help
@@ -11,12 +9,14 @@ help: # Display this help screen
 
 .PHONY: env
 env: # Display environment variables
-	@echo "Database URL: $(DATABASE_URL)"
 	@echo "Postgres User: $(DB_USER)"
 	@echo "Postgres Name: $(DB_NAME)"
 	@echo "Postgres Host: $(DB_HOST)"
 	@echo "Postgres Port: $(DB_PORT)"
-	@echo "Migration Path: $(MIGRATION_PATH)"
+
+.PHONY: venv
+venv: # Creates a venv
+	python3 -m venv .venv
 
 .PHONY: docker-up
 docker-up: # Start Docker containers
@@ -29,17 +29,17 @@ docker-down: # Stop Docker containers
 .PHONY: migrate-new
 migrate-new: # Create a new migration file
 	@read -p "Enter migration name: " name; \
-	migrate create -ext sql -dir $(MIGRATION_PATH) -seq $$name
+	alembic revision --autogenerate -m "$$name"
 
 .PHONY: migrate-up
 migrate-up: # Run all pending migrations
-	migrate -path $(MIGRATION_PATH) -database "$(DATABASE_URL)" up
+	alembic upgrade head
 
 .PHONY: migrate-down
 migrate-down: # Rollback last migration
-	migrate -path $(MIGRATION_PATH) -database "$(DATABASE_URL)" down 1
+	alembic downgrade -1
 
 .PHONY: migrate-reset
 migrate-reset: # DANGER: Rollback all migrations
-	migrate -path $(MIGRATION_PATH) -database "$(DATABASE_URL)" drop
-	migrate -path $(MIGRATION_PATH) -database "$(DATABASE_URL)" up
+	alembic downgrade base
+	alembic upgrade head
