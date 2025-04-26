@@ -25,7 +25,9 @@ class TotoResult(Base):
     draw_date = Column(TIMESTAMP(timezone=True), nullable=False, index=True)
     jackpot = Column(DECIMAL, nullable=True)
     created_at = Column(
-        TIMESTAMP(timezone=True), server_default=func.current_timestamp()
+        TIMESTAMP(timezone=True),
+        server_default=func.current_timestamp(),
+        nullable=False,
     )
 
     winning_shares = relationship(
@@ -85,7 +87,11 @@ class TotoPage(Base):
         nullable=False,
     )
     html_content = Column(Text, nullable=False)
-    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    created_at = Column(
+        TIMESTAMP(timezone=True),
+        server_default=func.current_timestamp(),
+        nullable=False,
+    )
 
 
 class WinningTicket(Base):
