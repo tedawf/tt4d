@@ -19,7 +19,6 @@ alembic upgrade head
 echo "Deactivating virtualenv"
 deactivate
 
-# Configured user to be able to run this without sudo
 echo "Restarting tt4d service"
 systemctl restart tt4d-api.service
 
