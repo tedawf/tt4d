@@ -1,0 +1,42 @@
+name: Deploy to Proxmox
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-to-lxc:
+    name: Deploy to tt4d-api LXC
+    runs-on: proxmox-deployer
+
+    steps:
+      # Commented out cos actually we don't need this yet
+      # - name: Checkout code
+      #   uses: actions/checkout@v4
+
+      - name: SSH into tt4d-api LXC and deploy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{secrets.HOST}}
+          username: ${{secrets.USERNAME}}
+          key: ${{secrets.KEY}}
+          port: ${{secrets.PORT}}
+          script: |
+            set -e  # Exit immediately if a command exits with a non-zero status.
+
+            APP_DIR="${{secrets.APP_DIR}}"
+            DEPLOY_SCRIPT="deploy.sh"
+            TARGET_COMMIT="${{ github.sha }}"
+
+            echo "Connecting to host: ${{ secrets.HOST }} as user: ${{ secrets.USERNAME }}"
+            echo "Target app dir: ${APP_DIR}"
+            echo "Deployment commit: ${TARGET_COMMIT}"
+
+            echo "Navigating to app dir: ${APP_DIR}"
+            cd "${APP_DIR}"
+
+            echo "Executing deployment script: ./${DEPLOY_SCRIPT} with commit ${TARGET_COMMIT}"
+            ./${DEPLOY_SCRIPT} "${TARGET_COMMIT}"
+
+            echo "Deployment completed"
