@@ -9,11 +9,11 @@ from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
 from app.parsing_types import (
-    DrawResult,
-    GroupResult,
-    ItotoLocation,
-    WinningShare,
-    WinningTicket,
+    ParsedDrawResult,
+    ParsedGroupResult,
+    ParsedItotoLocation,
+    ParsedWinningShare,
+    ParsedWinningTicket,
 )
 from app.queries import get_html_content, save_html_content
 
@@ -77,7 +77,7 @@ def fetch_draw(db: Session, draw_no: int):
         return None
 
 
-def _parse_draw(html_content: str, given_draw_no) -> Optional[DrawResult]:
+def _parse_draw(html_content: str, given_draw_no) -> Optional[ParsedDrawResult]:
     """Parse TOTO draw results from HTML content."""
     if not html_content:
         logger.warning(
@@ -142,8 +142,8 @@ def _parse_draw(html_content: str, given_draw_no) -> Optional[DrawResult]:
         additional_number = int(additional_td.text.strip())
 
         # Get winning outlets
-        group1_result = GroupResult()
-        group2_result = GroupResult()
+        group1_result = ParsedGroupResult()
+        group2_result = ParsedGroupResult()
 
         winning_outlets_div = soup.find("div", class_="divWinningOutlets")
         if winning_outlets_div:
@@ -175,7 +175,7 @@ def _parse_draw(html_content: str, given_draw_no) -> Optional[DrawResult]:
         else:
             logger.warning(f"No jackpot prize element found for draw {given_draw_no}.")
 
-        return DrawResult(
+        return ParsedDrawResult(
             draw_date=draw_date,
             draw_number=draw_number,
             winning_numbers=winning_numbers,
@@ -193,7 +193,7 @@ def _parse_draw(html_content: str, given_draw_no) -> Optional[DrawResult]:
         return None
 
 
-def _parse_winning_shares(shares_table: str) -> List[WinningShare]:
+def _parse_winning_shares(shares_table: str) -> List[ParsedWinningShare]:
     winning_shares = []
 
     rows = shares_table.find_all("tr")[2:]  # Skip header rows
@@ -204,7 +204,7 @@ def _parse_winning_shares(shares_table: str) -> List[WinningShare]:
             amount = cols[1].text.strip()
             count = cols[2].text.strip()
             winning_shares.append(
-                WinningShare(
+                ParsedWinningShare(
                     group=int(group),
                     amount=_parse_money_amount(amount),
                     count=_parse_number(count),
@@ -213,12 +213,12 @@ def _parse_winning_shares(shares_table: str) -> List[WinningShare]:
     return winning_shares
 
 
-def _parse_group_results(winning_outlets_div) -> tuple[GroupResult, GroupResult]:
+def _parse_group_results(winning_outlets_div) -> tuple[ParsedGroupResult, ParsedGroupResult]:
     """
     Parse Group 1 and Group 2 results from the winning outlets div.
     """
-    group1 = GroupResult()
-    group2 = GroupResult()
+    group1 = ParsedGroupResult()
+    group2 = ParsedGroupResult()
 
     if not winning_outlets_div:
         return group1, group2
@@ -283,7 +283,7 @@ def _parse_winning_tickets(ul) -> list:
 
         # Check if its itoto ticket
         if text.startswith("iTOTO"):
-            itoto_ticket = WinningTicket(
+            itoto_ticket = ParsedWinningTicket(
                 outlet_name="iTOTO - System 12",
                 outlet_address="-",
                 entry_type="iTOTO - System 12",
@@ -317,7 +317,7 @@ def _parse_winning_tickets(ul) -> list:
     return tickets
 
 
-def _parse_regular_tickets(location_text: str) -> List[WinningTicket]:
+def _parse_regular_tickets(location_text: str) -> List[ParsedWinningTicket]:
     result_tickets = []
 
     try:
@@ -346,7 +346,7 @@ def _parse_regular_tickets(location_text: str) -> List[WinningTicket]:
 
         # Create a ticket object for each share
         for _ in range(count):
-            ticket = WinningTicket(
+            ticket = ParsedWinningTicket(
                 outlet_name=outlet_name,
                 outlet_address=outlet_address,
                 entry_type=entry_type,
@@ -362,7 +362,7 @@ def _parse_regular_tickets(location_text: str) -> List[WinningTicket]:
         return result_tickets
 
 
-def _parse_itoto_ticket(location_text: str) -> Optional[ItotoLocation]:
+def _parse_itoto_ticket(location_text: str) -> Optional[ParsedItotoLocation]:
     try:
         if not location_text or not isinstance(location_text, str):
             return None
@@ -380,7 +380,7 @@ def _parse_itoto_ticket(location_text: str) -> Optional[ItotoLocation]:
 
         outlet_name, outlet_address = _parse_address(outlet_text)
 
-        return ItotoLocation(
+        return ParsedItotoLocation(
             outlet_name=outlet_name,
             outlet_address=outlet_address,
             share_count=share_count,
@@ -430,7 +430,7 @@ def _parse_draw_number(draw_str):
     return int(draw_str.replace("Draw No. ", "").strip())
 
 
-def print_group_result(group_name: str, result: GroupResult) -> None:
+def print_group_result(group_name: str, result: ParsedGroupResult) -> None:
     """
     Print formatted group result information.
     """

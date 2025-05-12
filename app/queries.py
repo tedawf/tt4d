@@ -1,3 +1,7 @@
+import logging
+from typing import List, Optional
+
+from sqlalchemy import desc, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -9,16 +13,20 @@ from app.models import (
     WinningShare,
     WinningTicket,
 )
-from app.parsing_types import DrawResult
+from app.parsing_types import ParsedDrawResult, ParsedItotoLocation, ParsedWinningTicket
+
+logger = logging.getLogger(__name__)
 
 
 def get_latest_draw_number(db: Session) -> int:
-    latest_draw = db.query(TotoResult).order_by(TotoResult.draw_number.desc()).first()
+    """Retrieves the highest draw_number from toto_results"""
+    query = select(TotoResult.draw_number).order_by(desc(TotoResult.draw_number))
+    latest_draw = db.execute(query).scalars().first()
     return latest_draw.draw_number if latest_draw else 0
 
 
 def _save_winning_tickets(
-    db: Session, draw_number: int, group_number: int, tickets: list
+    db: Session, draw_number: int, group_number: int, tickets: List[ParsedWinningTicket]
 ):
     for ticket_order, ticket in enumerate(tickets, 1):
         winning_ticket = WinningTicket(
@@ -31,23 +39,38 @@ def _save_winning_tickets(
             ticket_order=ticket_order,
         )
         db.add(winning_ticket)
-        db.flush()  # Get id
+        db.flush()  # Flush is necessary here to get db_winning_ticket.id for iTOTO locations
 
         # If it's an iTOTO ticket, save all the locations
         if ticket.is_itoto and ticket.itoto_locations:
             _save_itoto_locations(db, winning_ticket.id, ticket.itoto_locations)
+    logger.debug(
+        "Saved %s winning tickets for draw %s, group %s.",
+        len(tickets),
+        draw_number,
+        group_number,
+    )
 
 
-def _save_itoto_locations(db: Session, ticket_id: int, locations: list):
-    for location_order, location in enumerate(locations, 1):
-        itoto_location = ItotoLocation(
-            ticket_id=ticket_id,
-            outlet_name=location.outlet_name,
-            outlet_address=location.outlet_address,
-            share_count=location.share_count,
-            location_order=location_order,
+def _save_itoto_locations(
+    db: Session, winning_ticket_id: int, locations: List[ParsedItotoLocation]
+):
+    itoto_locations = []
+    for location_order, loc_data in enumerate(locations, 1):
+        itoto_locations.append(
+            ItotoLocation(
+                ticket_id=winning_ticket_id,
+                outlet_name=loc_data.outlet_name,
+                outlet_address=loc_data.outlet_address,
+                share_count=loc_data.share_count,
+                location_order=location_order,
+            )
         )
-        db.add(itoto_location)
+    if itoto_locations:
+        db.add_all(itoto_locations)
+    logger.debug(
+        "Saved %s iTOTO locations for ticket ID %s.", len(locations), winning_ticket_id
+    )
 
 
 def _save_snowball_info(
@@ -59,20 +82,29 @@ def _save_snowball_info(
         amount=amount,
     )
     db.add(snowball_info)
+    logger.debug(
+        "Saved snowball info for draw %s, group %s, amount %s.",
+        draw_number,
+        group_number,
+        amount,
+    )
 
 
-def save_draw(db: Session, draw_result: DrawResult) -> bool:
-    try:
-        # First, check if draw already exists
-        existing_draw = (
-            db.query(TotoResult)
-            .filter(TotoResult.draw_number == draw_result.draw_number)
-            .first()
+def save_draw(db: Session, draw_result: ParsedDrawResult) -> bool:
+    existing_query = select(TotoResult).where(
+        TotoResult.draw_number == draw_result.draw_number
+    )
+    existing_draw = db.execute(existing_query).scalars().first()
+
+    if existing_draw:
+        logger.warning(
+            "Draw %s already exists in the database. Skipping save.",
+            draw_result.draw_number,
         )
-        if existing_draw:
-            raise ValueError(f"Draw {draw_result.draw_number} already exists")
+        return False
 
-        # Save main result first
+    try:
+        logger.info("Saving new draw %s to database.", draw_result.draw_number)
         toto_result = TotoResult(
             draw_number=draw_result.draw_number,
             winning_numbers=draw_result.winning_numbers,
@@ -95,6 +127,11 @@ def save_draw(db: Session, draw_result: DrawResult) -> bool:
                 for share in draw_result.winning_shares
             ]
             db.add_all(winning_shares)
+            logger.debug(
+                "Added %s winning share records for draw %s.",
+                len(winning_shares),
+                draw_result.draw_number,
+            )
 
         # Process group results
         for group_num, group_result in [
@@ -102,6 +139,11 @@ def save_draw(db: Session, draw_result: DrawResult) -> bool:
             (2, draw_result.group2_result),
         ]:
             if not group_result:
+                logger.debug(
+                    "No group %s result data to process for draw %s.",
+                    group_num,
+                    draw_result.draw_number,
+                )
                 continue
 
             if group_result.has_winner:
@@ -118,41 +160,66 @@ def save_draw(db: Session, draw_result: DrawResult) -> bool:
                     group_num,
                     group_result.snowball_amount,
                 )
+            else:
+                logger.debug(
+                    "Group %s for draw %s has no winners and no snowball amount.",
+                    group_num,
+                    draw_result.draw_number,
+                )
 
         db.commit()
+        logger.info(
+            "Successfully saved draw %s and related data.", draw_result.draw_number
+        )
         return True
 
     except IntegrityError as e:
         db.rollback()
-        if "violates foreign key constraint" in str(e):
-            raise RuntimeError(
-                f"Foreign key violation. Make sure parent record exists first: {str(e)}"
-            ) from e
+        logger.error(
+            "Database integrity error while saving draw %s: %s",
+            draw_result.draw_number,
+            e,
+        )
+        raise
     except Exception as e:
         db.rollback()
-        raise RuntimeError(f"Error saving draw: {str(e)}") from e
+        logger.exception(
+            "Unexpected error saving draw %s: %s", draw_result.draw_number, e
+        )
+        raise
 
 
 def save_html_content(db: Session, draw_number: int, html_content: str) -> bool:
-    try:
-        # Check if already exists
-        existing = (
-            db.query(TotoPage).filter(TotoPage.draw_number == draw_number).first()
+    existing_query = select(TotoPage).where(TotoPage.draw_number == draw_number)
+    existing_page = db.execute(existing_query).scalars().first()
+
+    if existing_page:
+        logger.info(
+            "HTML content for draw %s already exists. Skipping save.", draw_number
         )
+        return False
 
-        if existing:
-            raise ValueError(f"Html content for draw {draw_number} already exists")
-
+    try:
         toto_page = TotoPage(draw_number=draw_number, html_content=html_content)
         db.add(toto_page)
         db.commit()
+        logger.info("Successfully saved HTML content for draw %s.", draw_number)
         return True
-    except Exception as e:
+    except IntegrityError as e:
         db.rollback()
-        print(f"Error saving HTML content: {e}")
+        logger.error("Integrity error saving HTML for draw %s: %s", draw_number, e)
+        raise
+    except Exception:
+        db.rollback()
+        logger.exception("Error saving HTML content for draw %s:", draw_number)
         return False
 
 
-def get_html_content(db: Session, draw_number: int) -> str:
-    toto_page = db.query(TotoPage).filter(TotoPage.draw_number == draw_number).first()
-    return toto_page.html_content if toto_page else None
+def get_html_content(db: Session, draw_number: int) -> Optional[str]:
+    q = select(TotoPage.html_content).where(TotoPage.draw_number == draw_number)
+    html_content = db.execute(q).scalars().first()
+    if html_content:
+        logger.debug("Found cached HTML for draw %s.", draw_number)
+    else:
+        logger.debug("No cached HTML found for draw %s.", draw_number)
+    return html_content
