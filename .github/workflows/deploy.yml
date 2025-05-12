@@ -39,7 +39,7 @@ jobs:
             echo "Fetching latest changes"
             git fetch origin
 
-            echo "Resetting to commit ${TARGET_COMMIT}""
+            echo "Resetting to commit ${TARGET_COMMIT}"
             git reset --hard "${TARGET_COMMIT}"
 
             echo "Executing deployment script: ./${DEPLOY_SCRIPT} with commit ${TARGET_COMMIT}"
