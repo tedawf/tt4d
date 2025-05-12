@@ -1,21 +1,26 @@
+import logging
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
 from app.models import SnowballInfo, TotoResult, WinningShare, WinningTicket
+from app.queries import get_latest_draw_number, save_draw
 from app.schemas import (
     DrawDetailsSchema,
     DrawResultSchema,
     ItotoLocationSchema,
+    ScrapeResultSchema,
     SnowballInfoSchema,
     WinningShareSchema,
     WinningTicketSchema,
 )
+from app.scraper import fetch_draw
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Draws"])
 
 
@@ -230,3 +235,52 @@ async def search_numbers(
         draw_results.append(get_draw_result_extra(result, shares))
 
     return draw_results
+
+
+@router.post("/scrape", response_model=ScrapeResultSchema, tags=["Scraping"])
+async def trigger_scrape(
+    draw_number: Optional[int] = None,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: Session = Depends(get_db),
+):
+    if draw_number is None:
+        latest_draw_number = get_latest_draw_number(db)
+        draw_number = latest_draw_number + 1
+        logger.info(
+            f"No draw number provided. Attempting to scrape next draw: {draw_number}"
+        )
+    else:
+        logger.info(f"Scrape requested for draw number: {draw_number}")
+
+    background_tasks.add_task(_scrape_task, draw_number, db)
+
+    return ScrapeResultSchema(
+        message=f"Scrape task for draw {draw_number} started in the background.",
+        draw_number_processed=draw_number,
+        status="initiated",
+    )
+
+
+def _scrape_task(draw_number: int, db: Session):
+    logger.info(f"[TASK] Starting scrape for draw {draw_number}")
+
+    try:
+        # 1. Scrape and parse the draw
+        parsed_draw = fetch_draw(db, draw_number)
+        if not parsed_draw:
+            logger.warning(f"[TASK] No data parsed for draw {draw_number}.")
+            return
+
+        # 2. Save the parsed draw
+        save_successful = save_draw(db, parsed_draw)
+        if save_successful:
+            logger.info(f"[TASK] Successfully scraped and saved draw {draw_number}.")
+        else:
+            logger.warning(f"[TASK] Scraped draw {draw_number}, but not saved.")
+
+    except Exception as e:
+        logger.exception(
+            f"[TASK] Error occurred during scrape for draw {draw_number}: {e}"
+        )
+    finally:
+        logger.info(f"[TASK] Scrape and save task finished for draw {draw_number}.")

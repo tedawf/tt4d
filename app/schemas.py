@@ -54,3 +54,13 @@ class DrawDetailsSchema(ApiModel):
     winning_shares: list[WinningShareSchema]
     snowball_info: list[SnowballInfoSchema]
     winning_tickets: list[WinningTicketSchema]
+
+
+class MessageSchema(ApiModel):
+    message: str
+
+
+class ScrapeResultSchema(MessageSchema):
+    draw_number_processed: Optional[int] = None
+    status: str
+    detail: Optional[str] = None
