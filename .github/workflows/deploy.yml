@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+env:
+  ACTIONS_STEP_DEBUG: true
+
 jobs:
   deploy-to-lxc:
     name: Deploy to tt4d-api LXC
