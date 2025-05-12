@@ -1,4 +1,5 @@
 import base64
+import logging
 import re
 from datetime import datetime
 from typing import List, Optional
@@ -16,6 +17,8 @@ from app.parsing_types import (
 )
 from app.queries import get_html_content, save_html_content
 
+logger = logging.getLogger(__name__)
+
 BASE_URL = "https://www.singaporepools.com.sg/en/product/sr/Pages/toto_results.aspx"
 
 
@@ -25,43 +28,61 @@ def fetch_draw(db: Session, draw_no: int):
     # First check if we already have the html content
     html_content = get_html_content(db, draw_no)
     if html_content:
-        print(f"Using cached HTML for draw {draw_no}")
-        result = _parse_draw(html_content, draw_no)
-        return result
+        logger.info(f"Using cached HTML for draw {draw_no}")
+        try:
+            result = _parse_draw(html_content, draw_no)
+            return result
+        except Exception:
+            logger.exception(
+                f"Error parsing cached HTML for draw {draw_no}. Will attempt to re-fetch."
+            )
 
-    print(f"Fetching draw {draw_no} from website...")
+    logger.info(f"Fetching draw {draw_no} from website...")
     draw_str = f"DrawNumber={draw_no}"
     encoded_draw_no = base64.b64encode(draw_str.encode()).decode()
+    url = f"{BASE_URL}?sppl={encoded_draw_no}"
 
     try:
-        response = requests.get(f"{BASE_URL}?sppl={encoded_draw_no}")
-        if response.status_code == 200:
-            raw_html = response.text.strip()
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
 
-            result = _parse_draw(raw_html, draw_no)
-            if not result:
-                print(f"No data parsed for draw {draw_no}")
-                return None
+        raw_html = response.text.strip()
+        result = _parse_draw(raw_html, draw_no)
 
-            # Store the raw HTML
-            save_success = save_html_content(db, draw_no, raw_html)
-            if save_success:
-                print(f"HTML content for draw {draw_no} saved successfully")
-
-            return result
-
-        else:
-            print(f"Failed to fetch page: {response.status_code}")
+        if not result:
+            logger.warning(f"No data successfully parsed for draw {draw_no}")
             return None
 
+        # Store the raw HTML
+        save_success = save_html_content(db, draw_no, raw_html)
+        if save_success:
+            logger.info(f"HTML content for draw {draw_no} saved successfully")
+        else:
+            logger.error(f"Failed to save HTML content for draw {draw_no}")
+
+        return result
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"HTTP error fetching draw {draw_no}: {e}")
+        return None
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout while fetching draw {draw_no}")
+        return None
+    except requests.exceptions.RequestException as e:
+        # Catch other network related errors
+        logger.error(f"Request failed for draw {draw_no}: {e}")
+        return None
     except Exception as e:
-        print(f"Error fetching page: {e}")
+        logger.exception(f"Unexpected error during fetch for draw {draw_no}: {e}")
         return None
 
 
 def _parse_draw(html_content: str, given_draw_no) -> Optional[DrawResult]:
     """Parse TOTO draw results from HTML content."""
     if not html_content:
+        logger.warning(
+            f"Attempted to parse empty HTML content for draw {given_draw_no}."
+        )
         return None
 
     try:
@@ -69,68 +90,106 @@ def _parse_draw(html_content: str, given_draw_no) -> Optional[DrawResult]:
         soup = BeautifulSoup(html_content, "html.parser")
         result_div = soup.find("div", class_="divSingleDraw")
         if not result_div:
-            print("Could not find draw results div")
+            logger.error(
+                f"Could not find 'divSingleDraw' in HTML for draw {given_draw_no}. Page structure might have changed."
+            )
             return None
 
         # Check draw number is same as given
-        draw_number = result_div.find("th", class_="drawNumber").text.strip()
-        if draw_number:
-            draw_number = _parse_draw_number(draw_number)
-
+        draw_number_th = result_div.find("th", class_="drawNumber")
+        if not draw_number_th or not draw_number_th.text:
+            logger.error(
+                f"Could not find draw number element or text for draw {given_draw_no}."
+            )
+            return None
+        draw_number_text = draw_number_th.text.strip()
+        draw_number = _parse_draw_number(draw_number_text)
         if draw_number != int(given_draw_no):
-            print(f"Unable to fetch data for draw {given_draw_no}")
+            logger.warning(
+                f"HTML draw number ({draw_number}) does not match requested draw number ({given_draw_no}). Skipping..."
+            )
             return None
 
         # Get draw date
-        draw_date = result_div.find("th", class_="drawDate").text.strip()
-        if draw_date:
-            draw_date = _parse_date(draw_date)
+        draw_date_th = result_div.find("th", class_="drawDate")
+        if not draw_date_th or not draw_date_th.text:
+            logger.error(
+                f"Could not find draw date element or text for draw {given_draw_no}."
+            )
+            return None
+        draw_date_text = draw_date_th.text.strip()
+        draw_date = _parse_date(draw_date_text)
+        if not draw_date:
+            logger.error(f"Failed to parse draw date for draw {given_draw_no}.")
+            return None
 
         # Winning numbers
         winning_numbers = []
         for i in range(1, 7):
-            number = result_div.find("td", class_=f"win{i}")
-            if number:
-                winning_numbers.append(int(number.text.strip()))
-        additional_number = int(result_div.find("td", class_="additional").text.strip())
+            number_td = result_div.find("td", class_=f"win{i}")
+            if number_td and number_td.text:
+                winning_numbers.append(int(number_td.text.strip()))
+            else:
+                logger.warning(
+                    f"Could not find winning number win{i} for draw {given_draw_no}."
+                )
+
+        # Additional number
+        additional_td = result_div.find("td", class_="additional")
+        if not additional_td or not additional_td.text:
+            logger.error(f"Could not find additional number for draw {given_draw_no}.")
+            return None
+        additional_number = int(additional_td.text.strip())
 
         # Get winning outlets
-        winning_outlets = soup.find("div", class_="divWinningOutlets")
-        if winning_outlets:
-            group1, group2 = _parse_group_results(winning_outlets)
+        group1_result = GroupResult()
+        group2_result = GroupResult()
+
+        winning_outlets_div = soup.find("div", class_="divWinningOutlets")
+        if winning_outlets_div:
+            group1_result, group2_result = _parse_group_results(winning_outlets_div)
+        else:
+            logger.warning(f"No 'divWinningOutlets' found for draw {given_draw_no}.")
 
         # Get winning shares (1194+)
-        winning_shares = result_div.find("table", class_="tableWinningShares")
-        if winning_shares:
-            winning_shares = _parse_winning_shares(winning_shares)
+        parsed_winning_shares = []
+        winning_shares_table = result_div.find("table", class_="tableWinningShares")
+        if winning_shares_table:
+            parsed_winning_shares = _parse_winning_shares(winning_shares_table)
 
-            # Assign group winner count and prize amount
-            group1.prize_amount = winning_shares[0].amount
-            group1.winning_count = winning_shares[0].count
-            group2.prize_amount = winning_shares[1].amount
-            group2.winning_count = winning_shares[1].count
+            if parsed_winning_shares and len(parsed_winning_shares) >= 2:
+                if parsed_winning_shares[0]:  # Group 1 shares
+                    group1_result.prize_amount = parsed_winning_shares[0].amount
+                    group1_result.winning_count = parsed_winning_shares[0].count
+                if parsed_winning_shares[1]:  # Group 2 shares
+                    group2_result.prize_amount = parsed_winning_shares[1].amount
+                    group2_result.winning_count = parsed_winning_shares[1].count
+        else:
+            logger.warning(f"No 'tableWinningShares' found for draw {given_draw_no}.")
 
         # Get group 1 prize (2995+)
-        jackpot = result_div.find("td", class_="jackpotPrize")
-        if jackpot:
-            jackpot = _parse_money_amount(jackpot.text.strip())
+        jackpot_td = result_div.find("td", class_="jackpotPrize")
+        jackpot = None
+        if jackpot_td and jackpot_td.text:
+            jackpot = _parse_money_amount(jackpot_td.text.strip())
+        else:
+            logger.warning(f"No jackpot prize element found for draw {given_draw_no}.")
 
         return DrawResult(
             draw_date=draw_date,
             draw_number=draw_number,
             winning_numbers=winning_numbers,
             additional_number=additional_number,
-            winning_shares=winning_shares,
+            winning_shares=parsed_winning_shares,
             jackpot=jackpot,
-            group1_result=group1,
-            group2_result=group2,
+            group1_result=group1_result,
+            group2_result=group2_result,
         )
 
     except Exception as e:
-        print(f"Error parsing draw results: {e}")
-        import traceback
-
-        traceback.print_exc()  # This will print the full error trace
+        logger.exception(
+            f"Unexpected error parsing draw results for draw {given_draw_no}: {e}"
+        )
         return None
 
 
