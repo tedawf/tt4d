@@ -7,14 +7,14 @@ import requests
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
-from db.queries import get_html_content, save_html_content
-from scheduler.models import (
+from app.parsing_types import (
     DrawResult,
     GroupResult,
     ItotoLocation,
     WinningShare,
     WinningTicket,
 )
+from app.queries import get_html_content, save_html_content
 
 BASE_URL = "https://www.singaporepools.com.sg/en/product/sr/Pages/toto_results.aspx"
 
@@ -42,7 +42,7 @@ def fetch_draw(db: Session, draw_no: int):
             if not result:
                 print(f"No data parsed for draw {draw_no}")
                 return None
-            
+
             # Store the raw HTML
             save_success = save_html_content(db, draw_no, raw_html)
             if save_success:
@@ -421,8 +421,8 @@ def print_group_result(group_name: str, result: GroupResult) -> None:
 if __name__ == "__main__":
     import sys
 
-    from db.database import SessionLocal
-    from db.queries import get_latest_draw_number
+    from app.database import SessionLocal
+    from app.queries import get_latest_draw_number
 
     print("Fetching results...")
     db = SessionLocal()

@@ -1,15 +1,15 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from db.models import (
+from app.models import (
     ItotoLocation,
     SnowballInfo,
     TotoPage,
     TotoResult,
-    WinningTicket,
     WinningShare,
+    WinningTicket,
 )
-from scheduler.models import DrawResult
+from app.parsing_types import DrawResult
 
 
 def get_latest_draw_number(db: Session) -> int:
@@ -31,7 +31,7 @@ def _save_winning_tickets(
             ticket_order=ticket_order,
         )
         db.add(winning_ticket)
-        db.flush() # Get id
+        db.flush()  # Get id
 
         # If it's an iTOTO ticket, save all the locations
         if ticket.is_itoto and ticket.itoto_locations:

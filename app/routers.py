@@ -1,12 +1,13 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
-import uvicorn
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from api.models import (
+from app.database import get_db
+from app.models import SnowballInfo, TotoResult, WinningShare, WinningTicket
+from app.schemas import (
     DrawDetailsSchema,
     DrawResultSchema,
     ItotoLocationSchema,
@@ -14,26 +15,30 @@ from api.models import (
     WinningShareSchema,
     WinningTicketSchema,
 )
-from db.database import get_db
-from db.models import SnowballInfo, TotoResult, WinningShare, WinningTicket
 
-app = FastAPI()
+router = APIRouter(tags=["Draws"])
 
 
-@app.get("/")
+@router.get("/")
 async def root():
     return {"message": "TT4D API"}
 
 
-@app.get("/draws/latest")
+@router.get("/draws/latest", response_model=DrawResultSchema)
 async def get_latest_draw(db: Session = Depends(get_db)):
     result = db.query(TotoResult).order_by(TotoResult.draw_date.desc()).first()
     if not result:
         raise HTTPException(status_code=404, detail="No draws found")
-    return result
+    
+    shares = (
+        db.query(WinningShare)
+        .filter(WinningShare.draw_number == result.draw_number)
+        .all()
+    )
+    return get_draw_result_extra(db, result, shares)
 
 
-@app.get("/draws/{draw_number}", response_model=DrawDetailsSchema)
+@router.get("/draws/{draw_number}", response_model=DrawDetailsSchema)
 async def get_draw(draw_number: int, db: Session = Depends(get_db)):
     # Get the draw result
     result = db.query(TotoResult).filter(TotoResult.draw_number == draw_number).first()
@@ -109,7 +114,7 @@ async def get_draw(draw_number: int, db: Session = Depends(get_db)):
     )
 
 
-@app.get("/draws", response_model=list[DrawResultSchema])
+@router.get("/draws", response_model=List[DrawResultSchema])
 async def get_draws(
     skip: int = 0,
     limit: int = 10,
@@ -146,7 +151,7 @@ def get_draw_result_extra(db, result, shares):
     total_prize = (
         sum(share.winner_count * share.share_amount for share in shares)
         if shares
-        else 0
+        else 0.0
     )
 
     return DrawResultSchema(
@@ -160,7 +165,7 @@ def get_draw_result_extra(db, result, shares):
     )
 
 
-@app.get("/search")
+@router.get("/search")
 async def search_numbers(
     numbers: str = Query(
         ..., description="Space-separated numbers to search for (e.g., '12 13 14')"
@@ -186,7 +191,3 @@ async def search_numbers(
 
     results = db.execute(query).scalars().all()
     return results
-
-
-if __name__ == "__main__":
-    uvicorn.run("api.main:app", host="::", reload=True)
