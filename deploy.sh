@@ -2,7 +2,7 @@
 
 set -e
 
-echo "--- Starting tt4d ---"
+echo "--- Starting tt4d deployment ---"
 
 echo "Activating virtualenv"
 source .venv/bin/activate || {
@@ -26,4 +26,4 @@ echo "Checking service status..."
 sleep 1
 sudo -n /usr/bin/systemctl status tt4d-api.service --no-pager
 
-echo "--- tt4d is working ---"
+echo "--- Deployed tt4d ---"

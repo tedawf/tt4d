@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy-to-lxc:
-    name: Deploy to tt4d-api LXC
+    name: Deploy to LXC
     runs-on: proxmox-deployer
 
     steps:
@@ -15,7 +15,7 @@ jobs:
       # - name: Checkout code
       #   uses: actions/checkout@v4
 
-      - name: SSH into tt4d-api LXC and deploy
+      - name: SSH into LXC and deploy
         uses: appleboy/ssh-action@v1
         with:
           host: ${{secrets.HOST}}
@@ -42,7 +42,7 @@ jobs:
             echo "Resetting to commit ${TARGET_COMMIT}"
             git reset --hard "${TARGET_COMMIT}"
 
-            echo "Executing deployment script: ./${DEPLOY_SCRIPT} with commit ${TARGET_COMMIT}"
-            ./${DEPLOY_SCRIPT} "${TARGET_COMMIT}"
+            echo "Executing deployment script: ./${DEPLOY_SCRIPT}"
+            ./${DEPLOY_SCRIPT}
 
             echo "Deployment completed"
