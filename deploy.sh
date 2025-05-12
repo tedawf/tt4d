@@ -14,6 +14,9 @@ if [ -z "${DEPLOY_TARGET}" ]; then
   echo "No deployment commit provided, defaulting to ${DEPLOY_TARGET}"
 fi
 
+echo "Resetting workspace to ${DEPLOY_TARGET}"
+git reset --hard "${DEPLOY_TARGET}"
+
 echo "Activating virtualenv"
 source .venv/bin/activate || {
   echo "Failed to activate virtualenv"
