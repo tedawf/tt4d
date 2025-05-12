@@ -34,13 +34,6 @@ class SnowballInfoSchema(ApiModel):
     amount: float
 
 
-class WinningLocationSchema(ApiModel):
-    group_number: int
-    outlet_name: str
-    address: str
-    entry_type: str
-
-
 class ItotoLocationSchema(ApiModel):
     outlet_name: str
     address: str
