@@ -18,23 +18,9 @@ services:
   api:
     build:
       context: .
-      dockerfile: docker/Dockerfile.api
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    environment:
-      DB_HOST: db # for docker
-      DB_PORT: ${DB_PORT}
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASS: ${DB_PASS}
-    depends_on:
-      db:
-        condition: service_healthy
-
-  scheduler:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.scheduler
     environment:
       DB_HOST: db # for docker
       DB_PORT: ${DB_PORT}
