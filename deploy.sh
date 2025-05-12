@@ -14,6 +14,7 @@ fi
 
 echo "Deploying commit: ${DEPLOY_TARGET}"
 echo "Current user: $(whoami)"
+id
 echo "Working directory: $(pwd)"
 
 echo "Fetching latest changes"
