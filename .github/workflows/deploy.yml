@@ -36,5 +36,13 @@ jobs:
             echo "Navigating to app dir: ${APP_DIR}"
             cd "${APP_DIR}"
 
+            echo "Fetching latest changes"
+            git fetch origin
+
+            echo "Resetting to commit ${TARGET_COMMIT}""
+            git reset --hard "${TARGET_COMMIT}"
+
             echo "Executing deployment script: ./${DEPLOY_SCRIPT} with commit ${TARGET_COMMIT}"
             ./${DEPLOY_SCRIPT} "${TARGET_COMMIT}"
+
+            echo "Deployment completed"

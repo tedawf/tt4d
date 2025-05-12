@@ -2,18 +2,7 @@
 
 set -e
 
-DEPLOY_TARGET="${1}"
-
-echo "--- Starting deployment for tt4d ---"
-
-if [ -z "${DEPLOY_TARGET}" ]; then
-  DEPLOY_TARGET="origin/main"
-  echo "No deployment commit provided, defaulting to ${DEPLOY_TARGET}"
-fi
-
-echo "Fetching latest changes"
-git fetch origin
-git reset --hard "${DEPLOY_TARGET}"
+echo "--- Starting tt4d ---"
 
 echo "Activating virtualenv"
 source .venv/bin/activate || {
@@ -37,4 +26,4 @@ echo "Checking service status..."
 sleep 1
 sudo -n /usr/bin/systemctl status tt4d-api.service --no-pager
 
-echo "--- Finished deployment for tt4d ---"
+echo "--- tt4d is working ---"
