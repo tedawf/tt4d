@@ -10,7 +10,7 @@ echo "Fetching latest changes"
 git fetch origin
 
 if [ -z "${DEPLOY_TARGET}" ]; then
-  DEPLOY_TARGET ="origin/main"
+  DEPLOY_TARGET="origin/main"
   echo "No deployment commit provided, defaulting to ${DEPLOY_TARGET}"
 fi
 
@@ -33,10 +33,10 @@ echo "Deactivating virtualenv"
 deactivate
 
 echo "Restarting tt4d service"
-sudo /usr/bin/systemctl restart tt4d-api.service
+sudo -n /usr/bin/systemctl restart tt4d-api.service
 
 echo "Checking service status..."
 sleep 1
-sudo /usr/bin/systemctl status tt4d-api.service --no-pager
+sudo -n /usr/bin/systemctl status tt4d-api.service --no-pager
 
 echo "--- Finished deployment for tt4d ---"
