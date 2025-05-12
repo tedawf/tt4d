@@ -29,7 +29,7 @@ jobs:
             DEPLOY_SCRIPT="deploy.sh"
             TARGET_COMMIT="${{ github.sha }}"
 
-            echo "Connecting to host: ${{ secrets.HOST }}
+            echo "Connecting to host: ${{ secrets.HOST }}"
             echo "Running as user: $(whoami)"
             echo "Target app dir: ${APP_DIR}"
             echo "Deployment commit: ${TARGET_COMMIT}"
