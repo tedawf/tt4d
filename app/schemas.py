@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
@@ -16,11 +17,11 @@ class ApiModel(BaseModel):
 class DrawResultSchema(ApiModel):
     draw_number: int
     draw_date: datetime
-    winning_numbers: list[int]
+    winning_numbers: List[int]
     additional_number: int
-    jackpot: float
+    jackpot: Optional[float]
     total_winners: int
-    total_prize: int
+    total_prize: float
 
 
 class WinningShareSchema(ApiModel):
@@ -51,16 +52,23 @@ class WinningTicketSchema(ApiModel):
 
 class DrawDetailsSchema(ApiModel):
     draw_result: DrawResultSchema
-    winning_shares: list[WinningShareSchema]
-    snowball_info: list[SnowballInfoSchema]
-    winning_tickets: list[WinningTicketSchema]
+    winning_shares: List[WinningShareSchema]
+    snowball_info: List[SnowballInfoSchema]
+    winning_tickets: List[WinningTicketSchema]
 
 
-class MessageSchema(ApiModel):
-    message: str
+class ScrapeTaskStatus(str, Enum):
+    INITIATED = "initiated"
+    ALREADY_EXISTS = "already_exists"
+    FAILED_TO_INITIATE = "failed_to_initiate"
 
 
-class ScrapeResultSchema(MessageSchema):
-    draw_number_processed: Optional[int] = None
-    status: str
-    detail: Optional[str] = None
+class ScrapeResultSchema(ApiModel):
+    target_draw_number: int
+    status: ScrapeTaskStatus
+    message: Optional[str]
+
+
+class ScrapeRequestSchema(ApiModel):
+    draw_number: Optional[int] = None
+    force_scrape: bool = False
