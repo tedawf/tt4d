@@ -6,14 +6,16 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.database import get_db
+import app.queries as queries
+from app.database import SessionLocal, get_db
 from app.models import SnowballInfo, TotoResult, WinningShare, WinningTicket
-from app.queries import get_latest_draw_number, save_draw
 from app.schemas import (
     DrawDetailsSchema,
     DrawResultSchema,
     ItotoLocationSchema,
+    ScrapeRequestSchema,
     ScrapeResultSchema,
+    ScrapeTaskStatus,
     SnowballInfoSchema,
     WinningShareSchema,
     WinningTicketSchema,
@@ -53,7 +55,7 @@ async def get_draw(draw_number: int, db: Session = Depends(get_db)):
     if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Draw {draw_number} not found",
+            detail=f"Draw ({draw_number}) not found",
         )
 
     shares_query = select(WinningShare).where(WinningShare.draw_number == draw_number)
@@ -168,7 +170,7 @@ def get_draw_result_extra(
         draw_date=result.draw_date,
         winning_numbers=result.winning_numbers,
         additional_number=result.additional_number,
-        jackpot=result.jackpot if result.jackpot is not None else 0.0,
+        jackpot=result.jackpot,
         total_winners=total_winners,
         total_prize=total_prize,
     )
@@ -239,48 +241,85 @@ async def search_numbers(
 
 @router.post("/scrape", response_model=ScrapeResultSchema, tags=["Scraping"])
 async def trigger_scrape(
-    draw_number: Optional[int] = None,
+    request: ScrapeRequestSchema,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
 ):
-    if draw_number is None:
-        latest_draw_number = get_latest_draw_number(db)
-        draw_number = latest_draw_number + 1
-        logger.info(
-            f"No draw number provided. Attempting to scrape next draw: {draw_number}"
-        )
-    else:
-        logger.info(f"Scrape requested for draw number: {draw_number}")
+    target_draw_number = request.draw_number
+    rescrape = request.force_scrape
 
-    background_tasks.add_task(_scrape_task, draw_number, db)
+    if target_draw_number is None:
+        try:
+            latest_draw_number = queries.get_latest_draw_number(db)
+            target_draw_number = latest_draw_number + 1
+            logger.info(
+                f"Scrape requested with no draw number provided. Latest: ({latest_draw_number}), trying: ({target_draw_number})"
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error while getting latest draw number: {e}")
+            return ScrapeResultSchema(
+                message="Failed to start scrape task due to server error",
+                status=ScrapeTaskStatus.FAILED_TO_INITIATE,
+                target_draw_number=None,
+            )
+    else:
+        logger.info(f"Scrape requested for draw number: ({target_draw_number})")
+
+    # Check if trying to scrape existing draw
+    if not rescrape:
+        try:
+            existing_draw = queries.get_draw(db, target_draw_number)
+            if existing_draw:
+                logger.info(
+                    f"Draw ({target_draw_number}) already exists. Scrape task will not be started"
+                )
+                return ScrapeResultSchema(
+                    message=f"Failed to start scrape task as draw ({target_draw_number}) already exists",
+                    status=ScrapeTaskStatus.ALREADY_EXISTS,
+                    target_draw_number=target_draw_number,
+                )
+        except Exception as e:
+            logger.error(
+                f"Unexpected error while getting draw ({target_draw_number}): {e}"
+            )
+            return ScrapeResultSchema(
+                message="Failed to start scrape task due to server error",
+                status=ScrapeTaskStatus.FAILED_TO_INITIATE,
+                target_draw_number=None,
+            )
+
+    background_tasks.add_task(_scrape_task, target_draw_number)
 
     return ScrapeResultSchema(
-        message=f"Scrape task for draw {draw_number} started in the background.",
-        draw_number_processed=draw_number,
-        status="initiated",
+        message=f"Started scrape task for draw {target_draw_number} in the background",
+        status=ScrapeTaskStatus.INITIATED,
+        target_draw_number=target_draw_number,
     )
 
 
-def _scrape_task(draw_number: int, db: Session):
-    logger.info(f"[TASK] Starting scrape for draw {draw_number}")
+def _scrape_task(draw_number: int):
+    logger.info(f"[TASK] Starting scrape task for draw ({draw_number})")
 
+    # Background task should manage its own db session
+    task_db: Session = SessionLocal()
     try:
         # 1. Scrape and parse the draw
-        parsed_draw = fetch_draw(db, draw_number)
+        parsed_draw = fetch_draw(task_db, draw_number)
         if not parsed_draw:
-            logger.warning(f"[TASK] No data parsed for draw {draw_number}.")
+            logger.warning(f"[TASK] Did not scrape draw ({draw_number})")
             return
 
         # 2. Save the parsed draw
-        save_successful = save_draw(db, parsed_draw)
+        save_successful = queries.save_draw(task_db, parsed_draw)
         if save_successful:
-            logger.info(f"[TASK] Successfully scraped and saved draw {draw_number}.")
+            logger.info(f"[TASK] Successfully scraped and saved draw ({draw_number})")
         else:
-            logger.warning(f"[TASK] Scraped draw {draw_number}, but not saved.")
+            logger.warning(f"[TASK] Scraped but did not save draw ({draw_number})")
 
     except Exception as e:
         logger.exception(
-            f"[TASK] Error occurred during scrape for draw {draw_number}: {e}"
+            f"[TASK] Error occurred during scrape for draw ({draw_number}): {e}"
         )
     finally:
-        logger.info(f"[TASK] Scrape and save task finished for draw {draw_number}.")
+        task_db.close()
+        logger.info(f"[TASK] Scrape task completed for draw ({draw_number})")

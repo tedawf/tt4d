@@ -23,7 +23,9 @@ def get_latest_draw_number(db: Session) -> int:
     query = select(TotoResult.draw_number).order_by(desc(TotoResult.draw_number))
     latest_draw_number = db.execute(query).scalars().first()
     if latest_draw_number is None:
-        logger.info("No draws found in the database. Returning 0 as the latest draw number.")
+        logger.info(
+            "No draws found in the database. Returning 0 as the latest draw number."
+        )
         return 0
     return latest_draw_number
 
@@ -93,12 +95,14 @@ def _save_snowball_info(
     )
 
 
-def save_draw(db: Session, draw_result: ParsedDrawResult) -> bool:
-    existing_query = select(TotoResult).where(
-        TotoResult.draw_number == draw_result.draw_number
-    )
-    existing_draw = db.execute(existing_query).scalars().first()
+def get_draw(db: Session, draw_number: int) -> Optional[TotoResult]:
+    query = select(TotoResult).where(TotoResult.draw_number == draw_number)
+    result = db.execute(query).scalars().first()
+    return result
 
+
+def save_draw(db: Session, draw_result: ParsedDrawResult) -> bool:
+    existing_draw = get_draw(db, draw_result.draw_number)
     if existing_draw:
         logger.warning(
             "Draw %s already exists in the database. Skipping save.",
