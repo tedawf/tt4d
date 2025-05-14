@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_latest_draw_number(db: Session) -> int:
-    """Retrieves the highest draw_number from toto_results"""
+    """Retrieves the highest draw_number from toto_results or 0"""
     query = select(TotoResult.draw_number).order_by(desc(TotoResult.draw_number))
     latest_draw_number = db.execute(query).scalars().first()
     if latest_draw_number is None:

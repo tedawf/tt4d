@@ -10,13 +10,15 @@ logging.basicConfig(
 
 from fastapi import FastAPI
 
-from app import routers
+from app.routes.draw_router import router as draw_router
+from app.routes.scrape_router import router as scrape_router
 
-app = FastAPI()
+app = FastAPI(title="TT4D API")
 
-app.include_router(routers.router)
+app.include_router(draw_router, prefix="/draws")
+app.include_router(scrape_router, prefix="/scrape")
 
 
 @app.get("/")
 async def root():
-    return {"message": "TT4D API"}
+    return {"message": "Welcome to TT4D API"}
