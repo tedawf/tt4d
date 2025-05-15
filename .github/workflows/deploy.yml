@@ -8,7 +8,7 @@ on:
 jobs:
   deploy-to-lxc:
     name: Deploy to LXC
-    runs-on: proxmox-deployer
+    runs-on: self-hosted
 
     steps:
       # Commented out cos actually we don't need this yet
