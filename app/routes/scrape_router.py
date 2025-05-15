@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime
+from datetime import date
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
@@ -8,14 +8,14 @@ import app.queries as queries
 from app.database import SessionLocal, get_db
 from app.schemas import ScrapeRequestSchema, ScrapeResultSchema, ScrapeTaskStatus
 from app.scraper import fetch_draw
-from app.security import get_api_key
+from app.auth import api_key_auth
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Scraping"])
 
 
 @router.post(
-    "/", response_model=ScrapeResultSchema, dependencies=[Depends(get_api_key)]
+    "/", response_model=ScrapeResultSchema, dependencies=[Depends(api_key_auth)]
 )
 async def trigger_scrape(
     request: ScrapeRequestSchema,
