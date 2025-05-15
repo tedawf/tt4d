@@ -32,8 +32,8 @@ async def trigger_scrape(
 
         if not request.force_scrape:
             # Check if we already have today's results
-            # today_date = date.today()
-            today_date = date(2025, 5, 13)
+            today_date = date.today()
+            # today_date = date(2025, 5, 13) # for testing
             if latest_draw and latest_draw.draw_date.date() == today_date:
                 logger.info(
                     f"Results for today ({today_date}) already exists ({latest_draw_number})"
@@ -58,7 +58,7 @@ async def trigger_scrape(
         return ScrapeResultSchema(
             message="Failed to start scrape task due to server error",
             status=ScrapeTaskStatus.FAILED_TO_INITIATE,
-            target_draw_number=None,
+            target_draw_number=-1,
         )
 
     logger.info(f"Starting scrape task for draw ({target_draw_number})")
