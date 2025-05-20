@@ -7,6 +7,8 @@ from sqlalchemy import (
     Integer,
     Text,
     UniqueConstraint,
+    false,
+    text,
 )
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import relationship
@@ -29,6 +31,9 @@ class TotoResult(Base):
         server_default=func.current_timestamp(),
         nullable=False,
     )
+    is_complete = Column(Boolean, nullable=False, server_default=false(), index=True)
+    last_scrape_attempt_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    scrape_attempt_count = Column(Integer, nullable=False, server_default=text("0"))
 
     winning_shares = relationship(
         "WinningShare", back_populates="toto_result", cascade="all, delete-orphan"

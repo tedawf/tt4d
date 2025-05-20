@@ -22,6 +22,7 @@ class DrawResultSchema(ApiModel):
     jackpot: Optional[float]
     total_winners: int
     total_prize: float
+    is_complete: bool
 
 
 class WinningShareSchema(ApiModel):
@@ -64,11 +65,6 @@ class ScrapeTaskStatus(str, Enum):
 
 
 class ScrapeResultSchema(ApiModel):
-    target_draw_number: int
     status: ScrapeTaskStatus
-    message: Optional[str]
-
-
-class ScrapeRequestSchema(ApiModel):
-    draw_number: Optional[int] = None
-    force_scrape: bool = False
+    message: Optional[str] = None
+    target_draw_number: Optional[int] = None

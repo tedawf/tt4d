@@ -1,7 +1,8 @@
 import logging
+from datetime import datetime, timezone
 from typing import List, Optional
 
-from sqlalchemy import desc, select
+from sqlalchemy import delete, desc, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,23 @@ from app.models import (
 from app.parsing_types import ParsedDrawResult, ParsedItotoLocation, ParsedWinningTicket
 
 logger = logging.getLogger(__name__)
+
+
+def get_incomplete_toto_results(
+    db: Session, limit: int, max_attempts: int
+) -> List[TotoResult]:
+    query = (
+        select(TotoResult)
+        .where(TotoResult.is_complete == False)
+        .where(TotoResult.scrape_attempt_count < max_attempts)
+        .order_by(TotoResult.draw_number.desc())
+        .limit(limit)
+    )
+    results = db.execute(query).scalars().all()
+    logger.info(
+        f"Found {len(results)} incomplete TotoResult(s) (limit {limit}, max_attempts {max_attempts})."
+    )
+    return results
 
 
 def get_latest_draw_number(db: Session) -> int:
@@ -101,25 +119,63 @@ def get_draw(db: Session, draw_number: int) -> Optional[TotoResult]:
     return result
 
 
-def save_draw(db: Session, draw_result: ParsedDrawResult) -> bool:
+def save_or_update_draw(
+    db: Session, draw_result: ParsedDrawResult, is_complete: bool
+) -> bool:
     existing_draw = get_draw(db, draw_result.draw_number)
-    if existing_draw:
-        logger.warning(
-            "Draw %s already exists in the database. Skipping save.",
-            draw_result.draw_number,
-        )
-        return False
 
     try:
-        logger.info("Saving new draw %s to database.", draw_result.draw_number)
-        toto_result = TotoResult(
-            draw_number=draw_result.draw_number,
-            winning_numbers=draw_result.winning_numbers,
-            additional_number=draw_result.additional_number,
-            draw_date=draw_result.draw_date,
-            jackpot=draw_result.jackpot,
-        )
-        db.add(toto_result)
+        current_time = datetime.now(timezone.utc)
+
+        if existing_draw:
+            logger.info(
+                f"Updating existing draw ({draw_result.draw_number}) in database"
+            )
+
+            # Delete existing data
+            logger.debug(
+                f"Deleting existing data for draw ({existing_draw.draw_number}) before update"
+            )
+            db.execute(
+                delete(WinningShare).where(
+                    WinningShare.draw_number == existing_draw.draw_number
+                )
+            )
+            db.execute(
+                delete(SnowballInfo).where(
+                    SnowballInfo.draw_number == existing_draw.draw_number
+                )
+            )
+            db.execute(
+                delete(WinningTicket).where(
+                    WinningTicket.draw_number == existing_draw.draw_number
+                )
+            )
+            # ItotoLocation is cascaded so no need to delete manually
+
+            # Don't need to overwrite all ?
+            # existing_draw.winning_numbers = draw_result.winning_numbers
+            # existing_draw.additional_number = draw_result.additional_number
+            # existing_draw.draw_date = draw_result.draw_date
+            existing_draw.jackpot = draw_result.jackpot
+
+            existing_draw.is_complete = is_complete
+            existing_draw.scrape_attempt_count = (
+                existing_draw.scrape_attempt_count or 0
+            ) + 1
+            existing_draw.last_scrape_attempt_at = current_time
+
+        else:  # new draw
+            logger.info("Saving new draw %s to database.", draw_result.draw_number)
+            toto_result = TotoResult(
+                draw_number=draw_result.draw_number,
+                winning_numbers=draw_result.winning_numbers,
+                additional_number=draw_result.additional_number,
+                draw_date=draw_result.draw_date,
+                jackpot=draw_result.jackpot,
+            )
+            db.add(toto_result)
+
         db.flush()  # This ensures the main record exists before adding related records
 
         # Save winning shares
@@ -197,18 +253,19 @@ def save_draw(db: Session, draw_result: ParsedDrawResult) -> bool:
 
 
 def save_html_content(db: Session, draw_number: int, html_content: str) -> bool:
-    existing_query = select(TotoPage).where(TotoPage.draw_number == draw_number)
-    existing_page = db.execute(existing_query).scalars().first()
-
-    if existing_page:
-        logger.info(
-            "HTML content for draw %s already exists. Skipping save.", draw_number
-        )
-        return False
-
     try:
-        toto_page = TotoPage(draw_number=draw_number, html_content=html_content)
-        db.add(toto_page)
+        existing_query = select(TotoPage).where(TotoPage.draw_number == draw_number)
+        existing_page = db.execute(existing_query).scalars().first()
+
+        if existing_page:
+            logger.info(f"Updating HTML content for draw ({draw_number})")
+            existing_page.html_content = html_content
+            existing_page.created_at = datetime.now(timezone.utc)  # Update timestamp
+        else:
+            logger.info(f"Saving new HTML content for draw ({draw_number})")
+            toto_page = TotoPage(draw_number=draw_number, html_content=html_content)
+            db.add(toto_page)
+
         db.commit()
         logger.info("Successfully saved HTML content for draw %s.", draw_number)
         return True
@@ -219,7 +276,7 @@ def save_html_content(db: Session, draw_number: int, html_content: str) -> bool:
     except Exception:
         db.rollback()
         logger.exception("Error saving HTML content for draw %s:", draw_number)
-        return False
+        raise
 
 
 def get_html_content(db: Session, draw_number: int) -> Optional[str]:

@@ -231,4 +231,5 @@ def _get_draw_result_extra(
         jackpot=result.jackpot,
         total_winners=total_winners,
         total_prize=total_prize,
+        is_complete=result.is_complete,
     )

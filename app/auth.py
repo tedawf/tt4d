@@ -7,7 +7,7 @@ from starlette.status import HTTP_403_FORBIDDEN
 
 load_dotenv()
 
-API_KEY = os.getenv("API_KEY")
+API_KEY = os.getenv("TT4D_API_KEY")
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
