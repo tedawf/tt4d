@@ -59,6 +59,7 @@ async def trigger_scrape_task(
         return ScrapeResultSchema(
             message=f"Started scrape task in the background",
             status=ScrapeTaskStatus.INITIATED,
+            target_draw_number=incomplete_draws[0].draw_number
         )
 
     except Exception as e:
@@ -103,7 +104,7 @@ def _scrape_task(max_attempts: int = 3, max_jobs: int = 1):
             logger.info(f"{task_name} No incomplete draws found (that needs retry)")
 
         # Sort for consistent processing order (cos set)
-        sorted_draws_to_attempt = sorted(list(draws_to_attempt)).reverse()
+        sorted_draws_to_attempt = sorted(list(draws_to_attempt), reverse=True)
         logger.info(
             f"{task_name} Final list of draws to attempt this run: {sorted_draws_to_attempt}"
         )
