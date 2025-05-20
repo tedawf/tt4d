@@ -16,7 +16,7 @@ if [ -z "$TT4D_API_KEY" ]; then
   exit 1
 fi
 
-API_URL="http://localhost:8000/scrape/task"
+API_URL="http://localhost:8000/scrape"
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Cron: Triggering scrape task via API (Key: ${TT4D_API_KEY:0:4}****)." >>"$LOG_FILE"
 

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Draws"])
 
 
-@router.get("/", response_model=List[DrawResultSchema])
+@router.get("", response_model=List[DrawResultSchema])
 async def get_draws(
     skip: int = 0,
     limit: int = 10,

@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Scraping"])
 
 MAX_SCRAPE_ATTEMPTS = 10
-MAX_SCRAPE_JOBS = 3
+MAX_SCRAPE_JOBS = 5
 
 
 @router.post(
-    "/task", response_model=ScrapeResultSchema, dependencies=[Depends(api_key_auth)]
+    "", response_model=ScrapeResultSchema, dependencies=[Depends(api_key_auth)]
 )
 async def trigger_scrape_task(
     background_tasks: BackgroundTasks = BackgroundTasks(),
@@ -103,7 +103,7 @@ def _scrape_task(max_attempts: int = 3, max_jobs: int = 1):
             logger.info(f"{task_name} No incomplete draws found (that needs retry)")
 
         # Sort for consistent processing order (cos set)
-        sorted_draws_to_attempt = sorted(list(draws_to_attempt))
+        sorted_draws_to_attempt = sorted(list(draws_to_attempt)).reverse()
         logger.info(
             f"{task_name} Final list of draws to attempt this run: {sorted_draws_to_attempt}"
         )
@@ -156,9 +156,7 @@ def _scrape_task(max_attempts: int = 3, max_jobs: int = 1):
 
             result, is_complete = scrape_attempt
 
-            save_successful = queries.save_or_update_draw(
-                task_db, result, is_complete
-            )
+            save_successful = queries.save_or_update_draw(task_db, result, is_complete)
             if save_successful:
                 logger.info(
                     f"{task_name} Successfully processed and saved/updated draw ({draw_no})"
