@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends
@@ -13,8 +14,8 @@ from app.scraper import fetch_draw
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Scraping"])
 
-MAX_SCRAPE_ATTEMPTS = 10
-MAX_SCRAPE_JOBS = 5
+MAX_SCRAPE_ATTEMPTS = int(os.getenv("MAX_SCRAPE_ATTEMPTS", 20))
+MAX_SCRAPE_JOBS = int(os.getenv("MAX_SCRAPE_JOBS", 50))
 
 
 @router.post(
@@ -59,7 +60,7 @@ async def trigger_scrape_task(
         return ScrapeResultSchema(
             message=f"Started scrape task in the background",
             status=ScrapeTaskStatus.INITIATED,
-            target_draw_number=incomplete_draws[0].draw_number
+            target_draw_number=incomplete_draws[0].draw_number,
         )
 
     except Exception as e:

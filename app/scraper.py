@@ -538,7 +538,10 @@ if __name__ == "__main__":
         else:
             draw_number = sys.argv[1]
 
-        result = fetch_draw(db, draw_number)
+        result = None
+        fetch_result = fetch_draw(db, draw_number)
+        if fetch_result:
+            result, is_complete = fetch_result
 
         if result:
             print("Parsing completed")

@@ -8,10 +8,14 @@ logging.basicConfig(
     force=True,
 )
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from app.routes.draw_router import router as draw_router
 from app.routes.scrape_router import router as scrape_router
+
+# Load env once in whole app
+load_dotenv()
 
 app = FastAPI(title="TT4D API")
 
