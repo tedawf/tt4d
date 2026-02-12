@@ -4,6 +4,7 @@
 # Python
 .venv
 __pycache__
+.coverage
 
 # Macos
 .DS_Store

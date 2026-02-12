@@ -8,3 +8,5 @@ apscheduler
 alembic
 requests
 beautifulsoup4
+pytest
+pytest-cov
