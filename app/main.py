@@ -11,6 +11,7 @@ logging.basicConfig(
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+from app.routes.dddd_router import router as dddd_router
 from app.routes.draw_router import router as draw_router
 from app.routes.scrape_router import router as scrape_router
 
@@ -21,6 +22,7 @@ app = FastAPI(title="TT4D API")
 
 app.include_router(draw_router, prefix="/draws")
 app.include_router(scrape_router, prefix="/scrape")
+app.include_router(dddd_router)
 
 
 @app.get("/")
