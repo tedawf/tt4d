@@ -13,7 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from app.database import Base
+from app.core.database import Base
 
 
 class DdddDraw(Base):
@@ -32,7 +32,9 @@ class DdddDraw(Base):
         nullable=False,
     )
 
-    prizes = relationship("DdddPrize", back_populates="draw", cascade="all, delete-orphan")
+    prizes = relationship(
+        "DdddPrize", back_populates="draw", cascade="all, delete-orphan"
+    )
 
 
 class DdddPrize(Base):
@@ -44,7 +46,7 @@ class DdddPrize(Base):
         primary_key=True,
         nullable=False,
     )
-    tier = Column(Text, primary_key=True, nullable=False)
+    tier = Column(CHAR(1), primary_key=True, nullable=False)
     tier_idx = Column(SmallInteger, primary_key=True, nullable=False)
     number = Column(CHAR(4), nullable=False)
 
@@ -71,12 +73,13 @@ class DdddScrapeAttempt(Base):
     http_status = Column(Integer, nullable=True)
     outcome = Column(Text, nullable=False)
     error_message = Column(Text, nullable=True)
-    html_sha256 = Column(Text, nullable=True)
+    validation_mode = Column(Text, nullable=False)
+    result_sha256 = Column(Text, nullable=True)
     response_html = Column(Text, nullable=True)
 
     __table_args__ = (
         CheckConstraint(
-            "outcome IN ('success','already_exists','fetch_error','parse_error','validation_error','db_error','sequence_mismatch')",
+            "outcome IN ('success','already_exists','fetch_error','parse_error','validation_error','db_error','sequence_mismatch','no_new_draw','skipped_locked','dry_run')",
             name="ck_dddd_scrape_attempts_outcome",
         ),
     )

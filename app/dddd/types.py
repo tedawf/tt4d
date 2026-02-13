@@ -24,18 +24,24 @@ class ParsedDdddDraw:
         prizes.extend(self.consolation)
         return prizes
 
-
-@dataclass
-class FetchResult:
-    source_url: str
-    http_status: Optional[int]
-    html: Optional[str] = None
-    error_message: Optional[str] = None
+    def normalized_payload(self) -> dict:
+        return {
+            "requested_draw_number": self.requested_draw_number,
+            "actual_draw_number": self.actual_draw_number,
+            "draw_date": self.draw_date.isoformat() if self.draw_date else None,
+            "first": self.first,
+            "second": self.second,
+            "third": self.third,
+            "starter": self.starter,
+            "consolation": self.consolation,
+            "parse_errors": self.parse_errors,
+        }
 
 
 @dataclass
 class DdddRunResult:
     outcome: str
     requested_draw_number: int
+    validation_mode: str
     actual_draw_number: Optional[int] = None
     message: Optional[str] = None

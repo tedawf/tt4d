@@ -1,16 +1,21 @@
+"""4D HTML parser with strict vs historical validation modes."""
+
 import re
-from datetime import datetime
 from typing import Optional
 
 from bs4 import BeautifulSoup
 
+from app.core.parser_utils import parse_draw_date, parse_draw_number, text_or_none
 from app.dddd.types import ParsedDdddDraw
 
-DRAW_NO_RE = re.compile(r"Draw\s+No\.\s*(\d+)")
 FOUR_DIGIT_RE = re.compile(r"^[0-9]{4}$")
 
 
 def parse_dddd_html(html: str, requested_draw_number: int) -> ParsedDdddDraw:
+    """Parse a 4D draw page into normalized prize fields.
+
+    The parser keeps partial results and records missing/invalid pieces in `parse_errors`.
+    """
     parsed = ParsedDdddDraw(requested_draw_number=requested_draw_number)
 
     if not html:
@@ -23,19 +28,19 @@ def parse_dddd_html(html: str, requested_draw_number: int) -> ParsedDdddDraw:
         parsed.parse_errors.append("missing_divSingleDraw")
         return parsed
 
-    draw_number_text = _text_or_none(single_draw.find("th", class_="drawNumber"))
+    draw_number_text = text_or_none(single_draw.find("th", class_="drawNumber"))
     if draw_number_text is None:
         parsed.parse_errors.append("missing_draw_number")
     else:
-        parsed.actual_draw_number = _parse_draw_number(draw_number_text)
+        parsed.actual_draw_number = parse_draw_number(draw_number_text)
         if parsed.actual_draw_number is None:
             parsed.parse_errors.append("invalid_draw_number")
 
-    draw_date_text = _text_or_none(single_draw.find("th", class_="drawDate"))
+    draw_date_text = text_or_none(single_draw.find("th", class_="drawDate"))
     if draw_date_text is None:
         parsed.parse_errors.append("missing_draw_date")
     else:
-        parsed.draw_date = _parse_draw_date(draw_date_text)
+        parsed.draw_date = parse_draw_date(draw_date_text)
         if parsed.draw_date is None:
             parsed.parse_errors.append("invalid_draw_date")
 
@@ -43,7 +48,11 @@ def parse_dddd_html(html: str, requested_draw_number: int) -> ParsedDdddDraw:
     parsed.second = _extract_prize_number(single_draw, "tdSecondPrize")
     parsed.third = _extract_prize_number(single_draw, "tdThirdPrize")
 
-    for name, value in [("first", parsed.first), ("second", parsed.second), ("third", parsed.third)]:
+    for name, value in [
+        ("first", parsed.first),
+        ("second", parsed.second),
+        ("third", parsed.third),
+    ]:
         if value is None:
             parsed.parse_errors.append(f"missing_{name}_prize")
 
@@ -53,7 +62,12 @@ def parse_dddd_html(html: str, requested_draw_number: int) -> ParsedDdddDraw:
     return parsed
 
 
-def validate_parsed_draw(parsed: ParsedDdddDraw, strict: bool) -> list[str]:
+def validate_parsed_draw(parsed: ParsedDdddDraw, validation_mode: str) -> list[str]:
+    """Validate parsed 4D content.
+
+    `current` enforces the modern fixed prize counts.
+    `past` allows historical count differences while still validating prize formats.
+    """
     errors: list[str] = []
 
     if parsed.actual_draw_number is None:
@@ -62,7 +76,11 @@ def validate_parsed_draw(parsed: ParsedDdddDraw, strict: bool) -> list[str]:
     if parsed.draw_date is None:
         errors.append("draw_date_required")
 
-    for name, value in [("first", parsed.first), ("second", parsed.second), ("third", parsed.third)]:
+    for name, value in [
+        ("first", parsed.first),
+        ("second", parsed.second),
+        ("third", parsed.third),
+    ]:
         if value is None:
             errors.append(f"{name}_required")
         elif not FOUR_DIGIT_RE.match(value):
@@ -72,38 +90,19 @@ def validate_parsed_draw(parsed: ParsedDdddDraw, strict: bool) -> list[str]:
         if not FOUR_DIGIT_RE.match(prize):
             errors.append(f"invalid_prize_number:{prize}")
 
-    if strict:
+    if validation_mode == "current":
         if len(parsed.starter) != 10:
             errors.append(f"starter_count_expected_10_got_{len(parsed.starter)}")
         if len(parsed.consolation) != 10:
-            errors.append(f"consolation_count_expected_10_got_{len(parsed.consolation)}")
+            errors.append(
+                f"consolation_count_expected_10_got_{len(parsed.consolation)}"
+            )
 
     return errors
 
 
-def _text_or_none(node) -> Optional[str]:
-    if node is None:
-        return None
-    value = node.get_text(strip=True)
-    return value if value else None
-
-
-def _parse_draw_number(value: str) -> Optional[int]:
-    match = DRAW_NO_RE.search(value)
-    if not match:
-        return None
-    return int(match.group(1))
-
-
-def _parse_draw_date(value: str):
-    try:
-        return datetime.strptime(value, "%a, %d %b %Y").date()
-    except ValueError:
-        return None
-
-
 def _extract_prize_number(single_draw, css_class: str) -> Optional[str]:
-    value = _text_or_none(single_draw.find("td", class_=css_class))
+    value = text_or_none(single_draw.find("td", class_=css_class))
     if value is None:
         return None
     return value

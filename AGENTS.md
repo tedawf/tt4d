@@ -5,40 +5,69 @@
 Core API code lives in `app/`:
 
 - `app/main.py` boots FastAPI and registers routers.
-- `app/routes/` contains HTTP endpoints (`draw_router.py`, `scrape_router.py`).
-- `app/models.py`, `app/schemas.py`, and `app/queries.py` define persistence and response shapes.
-- `app/scraper.py` handles Singapore Pools fetch/parse logic.
+- `app/core/` contains shared infrastructure and utilities:
+  - `auth.py` (API key auth for job triggers)
+  - `client.py` (shared URL builder + HTTP fetch transport)
+  - `database.py` (SQLAlchemy engine + session)
+  - `locks.py` (PostgreSQL advisory locks)
+  - `audit.py` (attempt logging + suppression helpers)
+  - `schemas.py` (shared Pydantic base model + aliases)
+  - `validation.py` (validation mode helpers)
+- `app/toto/` contains Toto domain code:
+  - `parser.py`, `repository.py`, `service.py`, `schemas.py`, `routes.py`, `models.py`
+- `app/dddd/` contains 4D domain code:
+  - `parser.py`, `repository.py`, `service.py`, `schemas.py`, `routes.py`, `models.py`
 
-Database migrations are in `migrations/` (Alembic). Runtime and local tooling files are at repo root: `Makefile`, `docker-compose.yaml`, `Dockerfile`, `deploy.sh`, and `trigger_scrape.sh`. HTML fixtures for parser checks are under `mocks/`.
+Routers are exposed under domain prefixes:
+
+- Toto draws: `/toto/draws/*` (public)
+- Toto jobs: `/toto/jobs/*` (requires `X-API-Key`)
+- 4D draws: `/dddd/draws/*` (public)
+- 4D jobs: `/dddd/jobs/*` (requires `X-API-Key`)
+
+Database migrations are in `migrations/` (Alembic). Runtime and local tooling files are at repo root: `Makefile`, `docker-compose.yaml`, `Dockerfile`, and `deploy.sh`.
+
+Test fixtures:
+
+- Toto HTML fixtures: `samples/toto_*.html`
+- 4D sample HTML: `samples/4d_*.html`
 
 ## Build, Test, and Development Commands
 
-- Always activate the repo virtualenv before any Python-related command: `source .venv/bin/activate`.
+- Always activate the repo virtualenv before Python commands: `source .venv/bin/activate`.
 - `make help`: list available make targets.
 - `make venv && source .venv/bin/activate`: create and activate local virtualenv.
-- `pip install -r requirements.txt`: install Python dependencies.
+- `pip install -r requirements.txt`: install dependencies.
 - `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`: run API locally.
 - `make docker-up` / `make docker-down`: start or stop API + Postgres via Docker Compose.
 - `make migrate-up`: apply pending migrations.
-- `make migrate-new`: generate a new Alembic revision.
+- `make migrate-new`: generate new Alembic revision.
 - `make migrate-down`: roll back one migration.
+- `pytest -q`: run test suite.
 
 ## Coding Style & Naming Conventions
 
 Follow existing Python style in `app/`:
 
-- 4-space indentation, PEP 8 spacing, and explicit imports.
+- 4-space indentation, PEP 8 spacing, explicit imports.
 - `snake_case` for functions/variables, `PascalCase` for schema/model classes, `UPPER_SNAKE_CASE` for constants.
-- Keep route handlers thin; put DB and parsing logic in `queries.py`/`scraper.py`.
-- Use type hints (`Optional`, `List`, tuple return types) consistently.
+- Keep route handlers thin; keep orchestration in `service.py`, persistence in `repository.py`, and parsing in `parser.py`.
+- Use type hints consistently.
 
-No formatter/linter is currently enforced in-repo; keep changes consistent with surrounding code.
+Validation mode conventions:
+
+- Use `validation_mode` (not `validation_profile`).
+- Allowed values: `current`, `past`.
 
 ## Testing Guidelines
 
-There is no committed automated test suite yet and no CI test gate. For parser or query changes, validate with local runs and `mocks/*.html`. For endpoint changes, manually verify with `curl` (include `X-API-Key` for `/scrape`).
+There is no CI test gate yet. Validate parser and service changes with `pytest` and fixture/sample HTML.
 
-When adding tests, use `pytest` with files named `tests/test_*.py` and prioritize regression coverage for scraping edge cases.
+When adding tests:
+
+- Use `pytest` with files named `tests/test_*.py`.
+- Prioritize regression coverage for scraping and validation-mode behavior.
+- For endpoint changes, manually verify with `curl` and include `X-API-Key` for `*/jobs/*` routes.
 
 ## Commit & Pull Request Guidelines
 

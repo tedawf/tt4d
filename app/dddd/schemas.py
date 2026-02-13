@@ -1,19 +1,27 @@
+from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
-from pydantic.alias_generators import to_camel
+from app.core.schemas import ApiModel, ValidationMode
 
 
-class ApiModel(BaseModel):
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
+class DdddTriggerRequest(ApiModel):
+    validation_mode: ValidationMode = "current"
+    dry_run: bool = False
 
 
-class DdddFetchResponse(ApiModel):
+class DdddTriggerResponse(ApiModel):
     outcome: str
     requested_draw_number: int
     actual_draw_number: Optional[int] = None
-    strict: bool
+    validation_mode: ValidationMode
     message: Optional[str] = None
+
+
+class DdddDrawResultSchema(ApiModel):
+    draw_number: int
+    draw_date: date
+    first: Optional[str] = None
+    second: Optional[str] = None
+    third: Optional[str] = None
+    starter: list[str]
+    consolation: list[str]
