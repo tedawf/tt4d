@@ -11,13 +11,13 @@ make venv
 source .venv/bin/activate
 ```
 
-2. Install dependencies:
+1. Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Configure environment (`.env`):
+1. Configure environment (`.env`):
 
 - `DB_USER`
 - `DB_PASS`
@@ -26,13 +26,13 @@ pip install -r requirements.txt
 - `DB_NAME`
 - `TT4D_API_KEY`
 
-4. Run migrations:
+1. Run migrations:
 
 ```bash
 make migrate-up
 ```
 
-5. Start API:
+1. Start API:
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
