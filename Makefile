@@ -43,3 +43,7 @@ migrate-down: # Rollback last migration
 migrate-reset: # DANGER: Rollback all migrations
 	alembic downgrade base
 	alembic upgrade head
+
+.PHONY: test
+test: # Run test suite
+	pytest -q
